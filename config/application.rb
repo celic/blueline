@@ -24,8 +24,9 @@ module AmqpExample
         # Do not swallow errors in after_commit/after_rollback callbacks.
         config.active_record.raise_in_transactional_callbacks = true
 
-        # Load Grape API files
+        # Load Grape API files and enumerations
 		config.paths.add 'app/api', glob: '**/*.rb'
+        config.paths.add 'app/enums', glob: '**/*.rb'
 		config.autoload_paths += Dir["#{Rails.root}/app"]
 
         # Use Postgresql for Rails models by default
