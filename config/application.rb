@@ -29,6 +29,9 @@ module AmqpExample
         config.paths.add 'app/enums', glob: '**/*.rb'
 		config.autoload_paths += Dir["#{Rails.root}/app"]
 
+        # Autoload lib files
+        config.autoload_paths << Rails.root.join('lib')
+
         # Use Postgresql for Rails models by default
         config.generators do |g|
             g.orm :active_record
