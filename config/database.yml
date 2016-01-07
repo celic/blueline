@@ -6,15 +6,15 @@ default: &default
 
 development:
   <<: *default
-  databse: amqp_development
+  databse: blueline_development
 
 production:
   <<: *default
-  databse: amqp_development
+  databse: blueline_production
 
 # Warning: The database defined as "test" will be erased and
 # re-generated from your development database when you run "rake".
 # Do not set this db to the same as development or production.
 test:
   <<: *default
-  databse: amqp_test
+  databse: blueline_test
