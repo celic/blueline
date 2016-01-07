@@ -23,7 +23,7 @@ class Team < ActiveRecord::Base
 	has_many :players
 
 	## Class Methods
-	def by_abbrev(abbv)
+	def self.by_abbrev(abbv)
 		self.find_by abbreviation: abbv.to_s.upcase
 	end
 

@@ -25,11 +25,14 @@ module Pullers
                 link_ids = skater_row.css('a').map { |link| link['href'] }
                 unique_id = link_ids[0][11..-6]
 
-                row = {
+                player = {
                     key: unique_id,
                     name: skater_row.css('td')[1].content,
                     position: Enums::Position.parse(skater_row.css('td')[2].content),
-                    team: skater_row.css('td')[3].content,
+                    team: Team.by_abbrev(skater_row.css('td')[3].content)
+                }
+
+                stats = {
                     home: (skater_row.css('td')[4].content != '@'),
                     opponent: skater_row.css('td')[5].content,
                     decision: Enums::Decision.parse(skater_row.css('td')[6].content),
@@ -51,7 +54,7 @@ module Pullers
                     toi: skater_row.css('td')[22].attribute('csk').value
                 }
 
-                store_player row
+                self.store_player player, stats
             end
 
             puts skater_hashes[0]
@@ -79,22 +82,28 @@ module Pullers
                     toi: goalie_row.css('td')[14].attribute('csk').value
                 }
 
-                # store_goalie row
+                # self.store_goalie row
             end
 
             Rails.logger.info "##### Pullers::DailyStats.run => Parsing complete"
         end
 
-        def store_player(data)
+        def self.store_player(info, stats)
 
-            # Find player based on unique key
-            player = Player.find_by key: data(:key)
-            opponent = Team.find_by abbreviation: data(:opponent)
+            # find player for key
+            player = Player.find_by key: info[:key]
 
-            player.add_stats!(opponent, data)
+            # create new player if one was not found
+            player = Player.create info unless player
+
+            # find opponent
+            opponent = Team.by_abbrev stats.delete(:opponent)
+
+            # create stats record
+            player.add_stats! opponent, stats
         end
 
-        def store_goalie(data)
+        def self.store_goalie(data)
 
             # Find player based on name
         end
