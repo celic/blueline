@@ -28,7 +28,7 @@ module Pullers
                 row = {
                     key: unique_id,
                     name: skater_row.css('td')[1].content,
-                    position: Enums::Position.value_of(skater_row.css('td')[2].content),
+                    position: Enums::Position.parse(skater_row.css('td')[2].content),
                     team: skater_row.css('td')[3].content,
                     home: (skater_row.css('td')[4].content != '@'),
                     opponent: skater_row.css('td')[5].content,
@@ -64,7 +64,7 @@ module Pullers
                  row = {
                     key: unique_id,
                     name: goalie_row.css('td')[1].content,
-                    position: Enums::Position.value_of(goalie_row.css('td')[2].content),
+                    position: Enums::Position.parse(goalie_row.css('td')[2].content),
                     team: goalie_row.css('td')[3].content,
                     home: (goalie_row.css('td')[4].content != '@'),
                     opponent: goalie_row.css('td')[5].content,
