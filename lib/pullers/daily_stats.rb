@@ -3,6 +3,8 @@ require 'open-uri'
 require 'nokogiri'
 require 'time'
 
+require '/app/models/player.rb'
+
 module Pullers
     class DailyStats
 
@@ -49,7 +51,7 @@ module Pullers
                     toi: skater_row.css('td')[22].attribute('csk').value
                 }
 
-                evaluate_player row
+                store_player row
             end
 
             puts skater_hashes[0]
@@ -73,16 +75,20 @@ module Pullers
                     toi: goalie_row.css('td')[14].attribute('csk').value
                 }
 
-                evaluate_goalie row
+                store_goalie row
             end
 
             Rails.logger.info "##### Pullers::DailyStats.run => Parsing complete"
         end
 
-        def evaluate_player(data)
+        def store_player(data)
+
+            # Find player based on name and position
         end
 
-        def evaluate_goalie(data)
+        def store_goalie(data)
+
+            # Find player based on name
         end
     end
 end
