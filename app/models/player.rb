@@ -31,6 +31,13 @@ class Player < ActiveRecord::Base
 	scope :goalies, lambda { where(position: Enums::Position::G) }
 
 	## Methods
+	def add_stats!(opponent, hash)
+
+		klazz = self.goalie? ? GoalieStat : PlayerStat
+
+		klazz.create! hash.merge(player: self, team: self.team, opponent: opponent)
+	end
+
 	def forward?
 		Enums::Position.forward? self.position
 	end
