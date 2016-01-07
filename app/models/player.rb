@@ -13,7 +13,28 @@
 #
 
 class Player < ActiveRecord::Base
+	extend EnumerateIt
 
 	## Relationships
 	belongs_to :team
+
+	has_enumeration_for :position, with: Enums::Position
+
+	## Scopes
+	scope :forwards, lambda { where(position: Enums::Position.forwards) }
+	scope :defensemen, lambda { where(position: Enums::Position::D) }
+	scope :goalies, lambda { where(position: Enums::Position::G) }
+
+	## Methods
+	def forward?
+		Enums::Position.forward? self.position
+	end
+
+	def defenseman?
+		Enums::Position.defenseman? self.position
+	end
+
+	def goalie?
+		Enums::Position.goalie? self.position
+	end
 end
