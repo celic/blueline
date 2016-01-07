@@ -17,6 +17,11 @@ gem 'pg'
 # Enums
 gem 'enumerate_it'
 
+# Pullers
+gem 'open-uri'
+gem 'nokogiri'
+gem 'time'
+
 group :development, :test do
 
   # Spring speeds up development by keeping your application running in the background. Read more: https://github.com/rails/spring

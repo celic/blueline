@@ -1,10 +1,3 @@
-require 'rubygems'
-require 'open-uri'
-require 'nokogiri'
-require 'time'
-
-require '/app/models/player.rb'
-
 module Pullers
     class DailyStats
 
