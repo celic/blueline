@@ -16,6 +16,10 @@ module Enums
         end
 
 		## Helpers
+        def parse(str)
+            self.value_of(str)
+        end
+
 		def self.forward?(pos)
 			self.forwards.include? pos
 		end

@@ -32,4 +32,8 @@ class GoalieStat < ActiveRecord::Base
 	belongs_to :opponent, class_name: 'Team'
 
 	has_enumeration_for :record, with: Enums::GoalieRecord
+
+	## Scopes
+	scope :vs, lambda { |opp| where(opponent_id: opp) }
+	scope :outcome, lambda { |dec| where(decision: dec) }
 end
