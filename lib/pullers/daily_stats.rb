@@ -28,11 +28,11 @@ module Pullers
                 row = {
                     key: unique_id,
                     name: skater_row.css('td')[1].content,
-                    position: skater_row.css('td')[2].content,
+                    position: Enums::Position.value_of skater_row.css('td')[2].content,
                     team: skater_row.css('td')[3].content,
                     home: (skater_row.css('td')[4].content != '@'),
                     opponent: skater_row.css('td')[5].content,
-                    decision: skater_row.css('td')[6].content,
+                    decision: Enums::Decision.parse skater_row.css('td')[6].content,
                     goals: skater_row.css('td')[7].content,
                     assists: skater_row.css('td')[8].content,
                     points: skater_row.css('td')[9].content,
@@ -51,7 +51,7 @@ module Pullers
                     toi: skater_row.css('td')[22].attribute('csk').value
                 }
 
-                store_player row
+                # store_player row
             end
 
             puts skater_hashes[0]
@@ -64,12 +64,12 @@ module Pullers
                  row = {
                     key: unique_id,
                     name: goalie_row.css('td')[1].content,
-                    position: goalie_row.css('td')[2].content,
+                    position: Enums::Position.value_of goalie_row.css('td')[2].content,
                     team: goalie_row.css('td')[3].content,
                     home: (goalie_row.css('td')[4].content != '@'),
                     opponent: goalie_row.css('td')[5].content,
-                    decision: goalie_row.css('td')[6].content,
-                    record: goalie_row.css('td')[7].content,
+                    decision: Enums::Decision.parse goalie_row.css('td')[6].content,
+                    record: Enums::GoalieRecord.parse goalie_row.css('td')[7].content,
                     goals_against: goalie_row.css('td')[8].content,
                     shots_against: goalie_row.css('td')[9].content,
                     saves: goalie_row.css('td')[10].content,
@@ -79,7 +79,7 @@ module Pullers
                     toi: goalie_row.css('td')[14].attribute('csk').value
                 }
 
-                store_goalie row
+                # store_goalie row
             end
 
             Rails.logger.info "##### Pullers::DailyStats.run => Parsing complete"
