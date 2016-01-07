@@ -1,2 +1,4 @@
-# blue-line
-Accumulative statistics for the NHL
+Blueline
+========
+
+Nextgen NHL stats analysis

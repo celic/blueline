@@ -1,0 +1,20 @@
+default: &default
+  adapter: postgresql
+  host: localhost
+  username: <%= ENV['PG_USER'] %>
+  password: <%= ENV['PG_PASS'] %>
+
+development:
+  <<: *default
+  databse: amqp_development
+
+production:
+  <<: *default
+  databse: amqp_development
+
+# Warning: The database defined as "test" will be erased and
+# re-generated from your development database when you run "rake".
+# Do not set this db to the same as development or production.
+test:
+  <<: *default
+  databse: amqp_test
