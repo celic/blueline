@@ -20,6 +20,9 @@ class Player < ActiveRecord::Base
 	## Relationships
 	belongs_to :team
 
+	has_many :player_stats
+	has_many :goalie_stats
+
 	has_enumeration_for :position, with: Enums::Position
 
 	## Scopes
