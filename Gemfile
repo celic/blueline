@@ -18,9 +18,7 @@ gem 'pg'
 gem 'enumerate_it'
 
 # Pullers
-gem 'open-uri'
 gem 'nokogiri'
-gem 'time'
 
 group :development, :test do
 

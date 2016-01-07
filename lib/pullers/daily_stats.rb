@@ -1,7 +1,10 @@
+require 'open-uri'
+require 'time'
+
 module Pullers
     class DailyStats
 
-        def self.run(date = Date.today - 1.day)
+        def self.run(date = Date.today - 2.day)
 
             Rails.logger.info "##### Pullers::DailyStats.run => Running for #{date}"
 
@@ -19,7 +22,11 @@ module Pullers
 
             skaters.css('tr').each do |skater_row|
 
+                link_ids = skater_row.css('a').map { |link| link['href'] }
+                unique_id = link_ids[0][11..-6]
+
                 row = {
+                    key: unique_id,
                     name: skater_row.css('td')[1].content,
                     position: skater_row.css('td')[2].content,
                     team: skater_row.css('td')[3].content,
@@ -44,14 +51,18 @@ module Pullers
                     toi: skater_row.css('td')[22].attribute('csk').value
                 }
 
-                store_player row
+                #store_player row
             end
 
             puts skater_hashes[0]
 
             goalies.css('tr').each do |goalie_row|
 
+                link_ids = goalie_row.css('a').map { |link| link['href'] }
+                unique_id = link_ids[0][11..-6]
+
                  row = {
+                    key: unique_id,
                     name: goalie_row.css('td')[1].content,
                     position: goalie_row.css('td')[2].content,
                     team: goalie_row.css('td')[3].content,
@@ -68,7 +79,7 @@ module Pullers
                     toi: goalie_row.css('td')[14].attribute('csk').value
                 }
 
-                store_goalie row
+                #store_goalie row
             end
 
             Rails.logger.info "##### Pullers::DailyStats.run => Parsing complete"
@@ -76,7 +87,11 @@ module Pullers
 
         def store_player(data)
 
-            # Find player based on name and position
+            # Find player based on unique key
+            player = Player.find_by key: data(:key)
+            opponent = Team.find_by abbreviation: data(:opponent)
+
+            player.add_stats!(opponent, data)
         end
 
         def store_goalie(data)

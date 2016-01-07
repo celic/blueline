@@ -182,6 +182,7 @@ DEPENDENCIES
   grape-entity
   grape-swagger
   grape-swagger-rails
+  nokogiri
   pg
   rack-test
   rails (= 4.2.1)
