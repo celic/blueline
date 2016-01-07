@@ -1,0 +1,20 @@
+development: &default
+  clients:
+    default:
+      username: <%= ENV['MONGO_USER'] %>
+      password: <%= ENV['MONGO_PASS'] %>
+      database: amqp_development_mongo
+      hosts:
+        - localhost:27017
+
+production:
+  <<: *default
+  clients:
+    default:
+      database: amqp_mongo
+
+test:
+  <<: *default
+  clients:
+    default:
+      database: amqp_test_mongo
