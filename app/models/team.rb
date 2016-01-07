@@ -22,6 +22,11 @@ class Team < ActiveRecord::Base
 	## Relationships
 	has_many :players
 
+	## Class Methods
+	def by_abbrev(abbv)
+		self.find_by abbreviation: abbv.to_s.upcase
+	end
+
 	## Private Methods
 	private
 	def generate_full_name

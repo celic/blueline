@@ -40,4 +40,8 @@ class PlayerStat < ActiveRecord::Base
 	belongs_to :opponent, class_name: 'Team'
 
 	has_enumeration_for :decision, with: Enums::Decision
+
+	## Scopes
+	scope :vs, lambda { |opp| where(opponent_id: opp) }
+	scope :outcome, lambda { |dec| where(decision: dec) }
 end
