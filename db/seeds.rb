@@ -1,7 +1,35 @@
-# This file should contain all the record creation needed to seed the database with its default values.
-# The data can then be loaded with the rake db:seed (or created alongside the db with db:setup).
-#
-# Examples:
-#
-#   cities = City.create([{ name: 'Chicago' }, { name: 'Copenhagen' }])
-#   Mayor.create(name: 'Emanuel', city: cities.first)
+puts 'Creating teams...'
+
+Team.create! abbreviation: 'ANA', city: 'Anaheim', name: 'Ducks', state: 'California'
+Team.create! abbreviation: 'ARI', city: 'Phoenix', name: 'Coyotes', state: 'Arizona', full_name: 'Arizona Coyotes'
+Team.create! abbreviation: 'BOS', city: 'Boston', name: 'Bruins', state: 'Massachusetts'
+Team.create! abbreviation: 'BUF', city: 'Buffalo', name: 'Sabres', state: 'New York'
+Team.create! abbreviation: 'CGY', city: 'Calgary', name: 'Flames', state: 'Alberta'
+Team.create! abbreviation: 'CAR', city: 'Raleigh', name: 'Hurricanes', state: 'North Carolina', full_name: 'Carolina Hurricanes'
+Team.create! abbreviation: 'CHI', city: 'Chicago', name: 'Blackhawks', state: 'Illinois'
+Team.create! abbreviation: 'COL', city: 'Denver', name: 'Avalanche', state: 'Colorado', full_name: 'Colorado'
+Team.create! abbreviation: 'CBJ', city: 'Columbus', name: 'Blue Jackets', state: 'Ohio'
+Team.create! abbreviation: 'DAL', city: 'Dallas', name: 'Stars', state: 'Texas'
+Team.create! abbreviation: 'DET', city: 'Detroit', name: 'Red Wings', state: 'Michigan'
+Team.create! abbreviation: 'EDM', city: 'Edmonton', name: 'Oilers', state: 'Alberta'
+Team.create! abbreviation: 'FLA', city: 'Sunrise', name: 'Panthers', state: 'Florida', full_name: 'Florida Panthers'
+Team.create! abbreviation: 'LAK', city: 'Los Angeles', name: 'Kings', state: 'California'
+Team.create! abbreviation: 'MIN', city: 'St. Paul', name: 'Wild', state: 'Minnesota', full_name: 'Minnesota Wild'
+
+Team.create! abbreviation: 'MTL', city: 'Montreal', name: 'Canadiens', state: 'Quebec'
+Team.create! abbreviation: 'NSH', city: 'Nashville', name: 'Predators', state: 'Tennessee'
+Team.create! abbreviation: 'NJD', city: 'Newark', name: 'Devils', state: 'New Jersey', full_name: 'New Jersey Devils'
+Team.create! abbreviation: 'NYI', city: 'New York', name: 'Islanders', state: 'New York'
+Team.create! abbreviation: 'NYR', city: 'New York', name: 'Rangers', state: 'New York'
+Team.create! abbreviation: 'OTT', city: 'Ottowa', name: 'Senators', state: 'Ontario'
+Team.create! abbreviation: 'PHI', city: 'Philadelphia', name: 'Flyers', state: 'Pennsylvania', full_name: 'Philadelphia Flyers'
+Team.create! abbreviation: 'PIT', city: 'Pittsburg', name: 'Penguins', state: 'Pennsylvania', full_name: 'Pittsburg Penguins'
+Team.create! abbreviation: 'SJS', city: 'San Jose', name: 'Sharks', state: 'California'
+Team.create! abbreviation: 'STL', city: 'St. Louis', name: 'Blues', state: 'Missouri'
+Team.create! abbreviation: 'TBL', city: 'Tampa Bay', name: 'Lightning', state: 'Florida'
+Team.create! abbreviation: 'TOR', city: 'Toronto', name: 'Maple Leafs', state: 'Ontario'
+Team.create! abbreviation: 'VAN', city: 'Vancouver', name: 'Canucks', state: 'British Columbia'
+Team.create! abbreviation: 'WSH', city: 'Washington', name: 'Capitals', state: 'D.C.'
+Team.create! abbreviation: 'ANA', city: 'Winnipeg', name: 'Jets', state: 'Manitoba'
+
+puts '[x] Done'
