@@ -6,9 +6,11 @@
 #  team_id  :integer
 #  name     :string
 #  position :integer
+#  key      :string
 #
 # Indexes
 #
+#  index_players_on_key      (key) UNIQUE
 #  index_players_on_team_id  (team_id)
 #
 
