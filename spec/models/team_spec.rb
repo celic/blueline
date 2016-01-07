@@ -9,6 +9,10 @@
 #  state        :string
 #  full_name    :string
 #
+# Indexes
+#
+#  index_teams_on_abbreviation  (abbreviation)
+#
 
 require 'rails_helper'
 

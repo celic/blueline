@@ -9,6 +9,10 @@
 #  state        :string
 #  full_name    :string
 #
+# Indexes
+#
+#  index_teams_on_abbreviation  (abbreviation)
+#
 
 class Team < ActiveRecord::Base
 

@@ -16,20 +16,6 @@ ActiveRecord::Schema.define(version: 20160107024419) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
-  create_table "devices", force: :cascade do |t|
-    t.integer  "user_id"
-    t.string   "uuid"
-    t.integer  "os"
-    t.boolean  "mobile"
-    t.string   "user_agent"
-    t.string   "amqp_queue"
-    t.string   "token_hash"
-    t.datetime "last_request"
-  end
-
-  add_index "devices", ["token_hash"], name: "index_devices_on_token_hash", unique: true, using: :btree
-  add_index "devices", ["user_id"], name: "index_devices_on_user_id", unique: true, using: :btree
-
   create_table "players", force: :cascade do |t|
     t.integer "team_id"
     t.string  "name"
@@ -46,25 +32,6 @@ ActiveRecord::Schema.define(version: 20160107024419) do
     t.string "full_name"
   end
 
-  create_table "users", force: :cascade do |t|
-    t.string   "email",                  default: "", null: false
-    t.string   "encrypted_password",     default: "", null: false
-    t.string   "reset_password_token"
-    t.datetime "reset_password_sent_at"
-    t.integer  "sign_in_count",          default: 0,  null: false
-    t.datetime "current_sign_in_at"
-    t.datetime "last_sign_in_at"
-    t.inet     "current_sign_in_ip"
-    t.inet     "last_sign_in_ip"
-    t.string   "amqp_xchg"
-    t.datetime "created_at",                          null: false
-    t.datetime "updated_at",                          null: false
-    t.string   "username"
-    t.string   "name"
-  end
-
-  add_index "users", ["email"], name: "index_users_on_email", unique: true, using: :btree
-  add_index "users", ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true, using: :btree
-  add_index "users", ["username"], name: "index_users_on_username", unique: true, using: :btree
+  add_index "teams", ["abbreviation"], name: "index_teams_on_abbreviation", using: :btree
 
 end

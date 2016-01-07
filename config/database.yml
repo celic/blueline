@@ -6,15 +6,15 @@ default: &default
 
 development:
   <<: *default
-  databse: blueline_development
+  database: blueline_development
 
 production:
   <<: *default
-  databse: blueline_production
+  database: blueline_production
 
 # Warning: The database defined as "test" will be erased and
 # re-generated from your development database when you run "rake".
 # Do not set this db to the same as development or production.
 test:
   <<: *default
-  databse: blueline_test
+  database: blueline_test
