@@ -15,6 +15,9 @@ class Team < ActiveRecord::Base
 	## Callbacks
 	before_create :generate_full_name
 
+	## Relationships
+	has_many :players
+
 	## Private Methods
 	private
 	def generate_full_name
