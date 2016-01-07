@@ -24,9 +24,12 @@
 #
 
 class GoalieStat < ActiveRecord::Base
+	extend EnumerateIt
 
 	## Relationships
 	belongs_to :player
 	belongs_to :team
 	belongs_to :opponent, class_name: 'Team'
+
+	has_enumeration_for :record, with: Enums::GoalieRecord
 end
