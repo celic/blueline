@@ -11,7 +11,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20160109015022) do
+ActiveRecord::Schema.define(version: 20160109023242) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -30,6 +30,7 @@ ActiveRecord::Schema.define(version: 20160109015022) do
     t.boolean "shutout"
     t.integer "pim"
     t.integer "toi"
+    t.date    "date"
   end
 
   add_index "goalie_stats", ["player_id"], name: "index_goalie_stats_on_player_id", using: :btree
@@ -57,6 +58,7 @@ ActiveRecord::Schema.define(version: 20160109015022) do
     t.decimal "shot_percentage", precision: 5, scale: 2
     t.integer "shifts"
     t.integer "toi"
+    t.date    "date"
   end
 
   add_index "player_stats", ["player_id"], name: "index_player_stats_on_player_id", using: :btree

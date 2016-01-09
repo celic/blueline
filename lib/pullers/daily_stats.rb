@@ -53,7 +53,7 @@ module Pullers
                 }
 
                 # store player stats
-                self.store_player player, stats
+                self.store_player player, stats, date
             end
 
             goalies.css('tr').each do |goalie_row|
@@ -80,7 +80,7 @@ module Pullers
                 }
 
                 # store goalie stats
-                self.store_player player, stats
+                self.store_player player, stats, date
             end
 
             Rails.logger.info "##### Pullers::DailyStats => Parsing complete"
@@ -93,7 +93,7 @@ module Pullers
             row.css('a').attribute('href').value.split('/').last[0..-6]
         end
 
-        def self.store_player(info, stats)
+        def self.store_player(info, stats, date)
 
             # find player for key
             player = Player.find_by key: info[:key]
@@ -112,7 +112,7 @@ module Pullers
             Rails.logger.info "(#{player.goalie?}) => #{stats}"
 
             # create stats record
-            player.add_stats! opponent, stats
+            player.add_stats! opponent, stats, date
         end
     end
 end

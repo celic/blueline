@@ -24,6 +24,7 @@
 #  shot_percentage :decimal(5, 2)
 #  shifts          :integer
 #  toi             :integer
+#  date            :date
 #
 # Indexes
 #

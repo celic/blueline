@@ -16,6 +16,7 @@
 #  shutout         :boolean
 #  pim             :integer
 #  toi             :integer
+#  date            :date
 #
 # Indexes
 #
