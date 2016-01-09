@@ -6,6 +6,9 @@ module Pullers
 
         def self.run(date = Date.today - 1.day)
 
+            # Silence output
+            ActiveRecord::Base.logger = nil
+
             # construct url for date
             url = "http://www.hockey-reference.com/friv/dailyleaders.cgi?month=#{date.month}&day=#{date.day}&year=#{date.year}"
 
@@ -21,18 +24,31 @@ module Pullers
             skaters = page.css('#skaters').css('tbody')
             goalies = page.css('#goalies').css('tbody')
 
+            games = []
+
+            team_goals = Hash.new(0)
+            team_ppgs = Hash.new(0)
+            team_shgs = Hash.new(0)
+            team_evgs = Hash.new(0)
+            team_shots = Hash.new(0)
+            team_pims = Hash.new(0)
+            team_records = Hash.new("")
+
             skaters.css('tr').each do |skater_row|
+
+                team = skater_row.css('td')[3].content
+                opp = skater_row.css('td')[5].content
 
                 player = {
                     key: self.unique_id(skater_row.css('td')[1]),
                     name: skater_row.css('td')[1].content,
                     position: Enums::Position.parse(skater_row.css('td')[2].content),
-                    team: Team.by_abbrev(skater_row.css('td')[3].content)
+                    team: Team.by_abbrev(team)
                 }
 
                 stats = {
                     home: (skater_row.css('td')[4].content != '@'),
-                    opponent: skater_row.css('td')[5].content,
+                    opponent: Team.by_abbrev(opp),
                     decision: Enums::Decision.parse(skater_row.css('td')[6].content),
                     goals: skater_row.css('td')[7].content,
                     assists: skater_row.css('td')[8].content,
@@ -54,6 +70,63 @@ module Pullers
 
                 # store player stats
                 self.store_player player, stats, date
+
+                # aggregate team stats
+                team_goals[team] += stats[:goals].to_i
+                team_ppgs[team] += stats[:ppg].to_i
+                team_shgs[team] += stats[:shg].to_i
+                team_evgs[team] += stats[:evg].to_i
+                team_shots[team] += stats[:shots].to_i
+                team_pims[team] += stats[:pim].to_i
+
+                # collect unique teams
+                if team_records[team] == ""
+                    team_records[team] = stats[:decision]
+                end
+
+                # try to find the game
+                game = games.select { |game| game[:home][:team] == team ||
+                                             game[:away][:team] == team }.first
+
+                # game not found, add it
+                if not game
+                    games << {
+                        home: {
+                            team: (stats[:home] ? team : opp),
+                            goals: 0,
+                            ppg: 0,
+                            shg: 0,
+                            evg: 0,
+                            shots: 0,
+                            pim: 0,
+                            decision: nil
+                        },
+                        away: {
+                            team: (stats[:home] ? opp : team),
+                            goals: 0,
+                            ppg: 0,
+                            shg: 0,
+                            evg: 0,
+                            shots: 0,
+                            pim: 0,
+                            decision: nil
+                        },
+
+                    }
+                end
+
+            end
+
+            games.each do |game|
+                game.each do |location, values|
+                    values[:goals] = team_goals[values[:team]]
+                    values[:ppg] = team_ppgs[values[:team]]
+                    values[:shg] = team_shgs[values[:team]]
+                    values[:evg] = team_evgs[values[:team]]
+                    values[:shots] = team_shots[values[:team]]
+                    values[:pim] = team_pims[values[:team]]
+                    values[:decision] = team_records[values[:team]]
+                end
             end
 
             goalies.css('tr').each do |goalie_row|
@@ -107,7 +180,7 @@ module Pullers
             end
 
             # find opponent
-            opponent = Team.by_abbrev stats.delete(:opponent)
+            opponent = stats.delete(:opponent)
 
             Rails.logger.info "(#{player.goalie?}) => #{stats}"
 
