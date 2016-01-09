@@ -11,17 +11,35 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20160109035920) do
+ActiveRecord::Schema.define(version: 20160109045609) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
-  create_table "goalie_stats", force: :cascade do |t|
-    t.integer "player_id"
+  create_table "game_stats", force: :cascade do |t|
     t.integer "team_id"
     t.integer "opponent_id"
     t.boolean "home"
     t.integer "decision"
+    t.date    "date"
+    t.integer "goals"
+    t.integer "ppg"
+    t.integer "shg"
+    t.integer "evg"
+    t.integer "shots"
+    t.integer "pim"
+  end
+
+  add_index "game_stats", ["opponent_id"], name: "index_game_stats_on_opponent_id", using: :btree
+  add_index "game_stats", ["team_id"], name: "index_game_stats_on_team_id", using: :btree
+
+  create_table "games", force: :cascade do |t|
+    t.boolean "playoffs"
+    t.date    "date"
+  end
+
+  create_table "goalie_stats", force: :cascade do |t|
+    t.integer "player_id"
     t.integer "verdict"
     t.integer "goals_against"
     t.integer "shots_against"
@@ -30,18 +48,14 @@ ActiveRecord::Schema.define(version: 20160109035920) do
     t.boolean "shutout"
     t.integer "pim"
     t.integer "toi"
-    t.date    "date"
+    t.integer "game_id"
   end
 
+  add_index "goalie_stats", ["game_id"], name: "index_goalie_stats_on_game_id", using: :btree
   add_index "goalie_stats", ["player_id"], name: "index_goalie_stats_on_player_id", using: :btree
-  add_index "goalie_stats", ["team_id"], name: "index_goalie_stats_on_team_id", using: :btree
 
   create_table "player_stats", force: :cascade do |t|
     t.integer "player_id"
-    t.integer "team_id"
-    t.integer "opponent_id"
-    t.boolean "home"
-    t.integer "decision"
     t.integer "goals"
     t.integer "assists"
     t.integer "points"
@@ -58,11 +72,11 @@ ActiveRecord::Schema.define(version: 20160109035920) do
     t.decimal "shot_percentage", precision: 5, scale: 2
     t.integer "shifts"
     t.integer "toi"
-    t.date    "date"
+    t.integer "game_id"
   end
 
+  add_index "player_stats", ["game_id"], name: "index_player_stats_on_game_id", using: :btree
   add_index "player_stats", ["player_id"], name: "index_player_stats_on_player_id", using: :btree
-  add_index "player_stats", ["team_id"], name: "index_player_stats_on_team_id", using: :btree
 
   create_table "players", force: :cascade do |t|
     t.integer "team_id"

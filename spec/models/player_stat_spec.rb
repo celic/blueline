@@ -4,10 +4,6 @@
 #
 #  id              :integer          not null, primary key
 #  player_id       :integer
-#  team_id         :integer
-#  opponent_id     :integer
-#  home            :boolean
-#  decision        :integer
 #  goals           :integer
 #  assists         :integer
 #  points          :integer
@@ -24,12 +20,12 @@
 #  shot_percentage :decimal(5, 2)
 #  shifts          :integer
 #  toi             :integer
-#  date            :date
+#  game_id         :integer
 #
 # Indexes
 #
+#  index_player_stats_on_game_id    (game_id)
 #  index_player_stats_on_player_id  (player_id)
-#  index_player_stats_on_team_id    (team_id)
 #
 
 require 'rails_helper'

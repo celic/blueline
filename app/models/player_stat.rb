@@ -4,10 +4,7 @@
 #
 #  id              :integer          not null, primary key
 #  player_id       :integer
-#  team_id         :integer
-#  opponent_id     :integer
-#  home            :boolean
-#  decision        :integer
+#  game_id         :integer
 #  goals           :integer
 #  assists         :integer
 #  points          :integer
@@ -24,12 +21,11 @@
 #  shot_percentage :decimal(5, 2)
 #  shifts          :integer
 #  toi             :integer
-#  date            :date
 #
 # Indexes
 #
+#  index_player_stats_on_game_id    (game_id)
 #  index_player_stats_on_player_id  (player_id)
-#  index_player_stats_on_team_id    (team_id)
 #
 
 class PlayerStat < ActiveRecord::Base
@@ -38,11 +34,11 @@ class PlayerStat < ActiveRecord::Base
 	## Relationships
 	belongs_to :player
 	belongs_to :team
-	belongs_to :opponent, class_name: 'Team'
+	belongs_to :game, class_name: 'GameStat'
 
 	has_enumeration_for :decision, with: Enums::Decision
 
 	## Scopes
-	scope :vs, lambda { |opp| where(opponent_id: opp) }
-	scope :outcome, lambda { |dec| where(decision: dec) }
+	scope :vs, lambda { |opp| join(:game).where('game_stats.opponent_id': opp) }
+	scope :outcome, lambda { |dec| join(:game).where('game_stats.opponent_id': opp) }
 end

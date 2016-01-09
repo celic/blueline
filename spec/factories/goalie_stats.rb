@@ -4,10 +4,6 @@
 #
 #  id              :integer          not null, primary key
 #  player_id       :integer
-#  team_id         :integer
-#  opponent_id     :integer
-#  home            :boolean
-#  decision        :integer
 #  verdict         :integer
 #  goals_against   :integer
 #  shots_against   :integer
@@ -16,12 +12,12 @@
 #  shutout         :boolean
 #  pim             :integer
 #  toi             :integer
-#  date            :date
+#  game_id         :integer
 #
 # Indexes
 #
+#  index_goalie_stats_on_game_id    (game_id)
 #  index_goalie_stats_on_player_id  (player_id)
-#  index_goalie_stats_on_team_id    (team_id)
 #
 
 FactoryGirl.define do
