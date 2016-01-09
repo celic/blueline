@@ -21,14 +21,14 @@ module Pullers
             skaters = page.css('#skaters').css('tbody')
             goalies = page.css('#goalies').css('tbody')
 
-            team_goals = {}
-            team_ppgs = {}
-            team_shgs = {}
-            team_evgs = {}
-            team_shots = {}
-            team_records = {}
-            team_opponents = {}
-            team_goals_against = {}
+            team_goals = Hash.new(0)
+            team_ppgs = Hash.new(0)
+            team_shgs = Hash.new(0)
+            team_evgs = Hash.new(0)
+            team_shots = Hash.new(0)
+            team_records = Hash.new("")
+            team_opponents = Hash.new("")
+            team_goals_against = Hash.new(0)
 
             skaters.css('tr').each do |skater_row|
 
@@ -41,7 +41,7 @@ module Pullers
 
                 stats = {
                     home: (skater_row.css('td')[4].content != '@'),
-                    opponent: skater_row.css('td')[5].content,
+                    opponent: Team.by_abbrev(skater_row.css('td')[5].content),
                     decision: Enums::Decision.parse(skater_row.css('td')[6].content),
                     goals: skater_row.css('td')[7].content,
                     assists: skater_row.css('td')[8].content,
@@ -65,16 +65,16 @@ module Pullers
                 #self.store_player player, stats, date
 
                 # aggregate goals scored per team
-                team_goals[player["team"]] += stats["goals"]
-                team_ppgs[player["team"]] += stats["ppg"]
-                team_shgs[player["team"]] += stats["shg"]
-                team_evgs[player["team"]] += stats["evg"]
-                team_shots[player["team"]] += stats["shots"]
+                team_goals[player[:team]] += stats[:goals]
+                team_ppgs[player[:team]] += stats[:ppg]
+                team_shgs[player[:team]] += stats[:shg]
+                team_evgs[player[:team]] += stats[:evg]
+                team_shots[player[:team]] += stats[:shots]
 
                 # collect unique teams
-                if not team_records.contains player["team"]
-                    team_records[player["team"]] = stats["decision"]
-                    team_opponents[player["team"]] = stats["opponent"]
+                if not team_records.contains player[:team]
+                    team_records[player[:team]] = stats[:decision]
+                    team_opponents[player[:team]] = stats[:opponent]
                 end
 
             end
@@ -134,7 +134,7 @@ module Pullers
             end
 
             # find opponent
-            opponent = Team.by_abbrev stats.delete(:opponent)
+            opponent = stats.delete(:opponent)
 
             Rails.logger.info "(#{player.goalie?}) => #{stats}"
 
