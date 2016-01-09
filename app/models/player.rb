@@ -31,14 +31,16 @@ class Player < ActiveRecord::Base
 	scope :goalies, lambda { where(position: Enums::Position::G) }
 
 	## Methods
+	def stat_class
+		self.goalie? ? GoalieStat : PlayerStat
+	end
+	
 	def add_stats!(opponent, hash, date)
 
-		klazz = (self.goalie? ? GoalieStat : PlayerStat)
-
 		# dont add duplicate stats
-		return if klazz.exists? player_id: self.id, date: date
+		return if stat_class.exists? player: self, date: date
 
-		klazz.create! hash.merge(player: self, team: self.team, opponent: opponent, date: date)
+		stat_class.create! hash.merge(player: self, team: self.team, opponent: opponent, date: date)
 	end
 
 	def forward?
