@@ -5,11 +5,11 @@ Team.create! abbreviation: 'NYI', city: 'New York', name: 'Islanders', state: 'N
 Team.create! abbreviation: 'NYR', city: 'New York', name: 'Rangers', state: 'New York', division_id: Enums::Division::METRO
 Team.create! abbreviation: 'WSH', city: 'Washington', name: 'Capitals', state: 'D.C.', division_id: Enums::Division::METRO
 Team.create! abbreviation: 'CBJ', city: 'Columbus', name: 'Blue Jackets', state: 'Ohio', division_id: Enums::Division::METRO
-Team.create! abbreviation: 'PHI', city: 'Philadelphia', name: 'Flyers', state: 'Pennsylvania', full_name: 'Philadelphia Flyers', division_id: Enums::Division::METRO
-Team.create! abbreviation: 'PIT', city: 'Pittsburg', name: 'Penguins', state: 'Pennsylvania', full_name: 'Pittsburg Penguins', division_id: Enums::Division::METRO
+Team.create! abbreviation: 'PHI', city: 'Philadelphia', name: 'Flyers', state: 'Pennsylvania', division_id: Enums::Division::METRO
+Team.create! abbreviation: 'PIT', city: 'Pittsburgh', name: 'Penguins', state: 'Pennsylvania', division_id: Enums::Division::METRO
 Team.create! abbreviation: 'CAR', city: 'Raleigh', name: 'Hurricanes', state: 'North Carolina', full_name: 'Carolina Hurricanes', division_id: Enums::Division::METRO
 
-Team.create! abbreviation: 'OTT', city: 'Ottowa', name: 'Senators', state: 'Ontario', division_id: Enums::Division::ATLANTIC
+Team.create! abbreviation: 'OTT', city: 'Ottawa', name: 'Senators', state: 'Ontario', division_id: Enums::Division::ATLANTIC
 Team.create! abbreviation: 'TBL', city: 'Tampa Bay', name: 'Lightning', state: 'Florida', division_id: Enums::Division::ATLANTIC
 Team.create! abbreviation: 'TOR', city: 'Toronto', name: 'Maple Leafs', state: 'Ontario', division_id: Enums::Division::ATLANTIC
 Team.create! abbreviation: 'DET', city: 'Detroit', name: 'Red Wings', state: 'Michigan', division_id: Enums::Division::ATLANTIC
