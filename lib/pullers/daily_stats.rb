@@ -32,16 +32,19 @@ module Pullers
 
             skaters.css('tr').each do |skater_row|
 
+                team = skater_row.css('td')[3].content
+                opp = skater_row.css('td')[5].content
+
                 player = {
                     key: self.unique_id(skater_row.css('td')[1]),
                     name: skater_row.css('td')[1].content,
                     position: Enums::Position.parse(skater_row.css('td')[2].content),
-                    team: Team.by_abbrev(skater_row.css('td')[3].content)
+                    team: Team.by_abbrev(team)
                 }
 
                 stats = {
                     home: (skater_row.css('td')[4].content != '@'),
-                    opponent: Team.by_abbrev(skater_row.css('td')[5].content),
+                    opponent: Team.by_abbrev(opp),
                     decision: Enums::Decision.parse(skater_row.css('td')[6].content),
                     goals: skater_row.css('td')[7].content,
                     assists: skater_row.css('td')[8].content,
@@ -64,17 +67,20 @@ module Pullers
                 # store player stats
                 #self.store_player player, stats, date
 
+                puts team, opp
+                puts stats[:goals]
+
                 # aggregate goals scored per team
-                team_goals[player[:team]] += stats[:goals]
-                team_ppgs[player[:team]] += stats[:ppg]
-                team_shgs[player[:team]] += stats[:shg]
-                team_evgs[player[:team]] += stats[:evg]
-                team_shots[player[:team]] += stats[:shots]
+                team_goals[team] += stats[:goals].to_i
+                team_ppgs[team] += stats[:ppg].to_i
+                team_shgs[team] += stats[:shg].to_i
+                team_evgs[team] += stats[:evg].to_i
+                team_shots[team] += stats[:shots].to_i
 
                 # collect unique teams
-                if not team_records.contains player[:team]
-                    team_records[player[:team]] = stats[:decision]
-                    team_opponents[player[:team]] = stats[:opponent]
+                if team_records[team] == ""
+                    team_records[team] = stats[:decision]
+                    team_opponents[team] = opp
                 end
 
             end
