@@ -28,6 +28,9 @@ class Team < ActiveRecord::Base
 	## Relationships
 	has_many :players
 
+	## Scopes
+	scope :division, lambda { |div| where(division_id: div) }
+
 	## Class Methods
 	def self.by_abbrev(abbv)
 		self.find_by abbreviation: abbv.to_s.upcase

@@ -6,7 +6,7 @@ module Enums
             win: [1, 'W'],
             loss: [2, 'L'],
 			otl: [3, 'L-OT'],
-			sol: [4, 'L-SO'],
+			sol: [4, 'L-SO']
         )
 
 		## Helpers

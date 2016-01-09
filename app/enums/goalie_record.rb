@@ -6,7 +6,7 @@ module Enums
             win: [1, 'W'],
             loss: [2, 'L'],
 			ot: [3, 'L-OT'],
-			pulled: [4, ''],
+			pulled: [4, '']
     	)
 
 		## Helpers

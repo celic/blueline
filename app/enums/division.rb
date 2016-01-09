@@ -6,7 +6,7 @@ module Enums
             metro: [1, 'Metropolitan'],
             atlantic: [2, 'Atlantic'],
 			pacific: [3, 'Pacific'],
-			central: [4, 'Central'],
+			central: [4, 'Central']
         )
 
 		## Constants
@@ -14,11 +14,11 @@ module Enums
 		WEST = [ self::PACIFIC, self::CENTRAL ]
 
 		## Helpers
-		def east?(division)
+		def self.east?(division)
 			self::EAST.include? division
 		end
 
-		def west?(division)
+		def self.west?(division)
 			self::WEST.include? division
 		end
 	end
