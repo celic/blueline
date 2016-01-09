@@ -8,7 +8,7 @@
 #  opponent_id     :integer
 #  home            :boolean
 #  decision        :integer
-#  record          :integer
+#  verdict         :integer
 #  goals_against   :integer
 #  shots_against   :integer
 #  saves           :integer

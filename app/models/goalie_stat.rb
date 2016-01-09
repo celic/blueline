@@ -8,7 +8,7 @@
 #  opponent_id     :integer
 #  home            :boolean
 #  decision        :integer
-#  record          :integer
+#  verdict         :integer
 #  goals_against   :integer
 #  shots_against   :integer
 #  saves           :integer
@@ -31,7 +31,7 @@ class GoalieStat < ActiveRecord::Base
 	belongs_to :team
 	belongs_to :opponent, class_name: 'Team'
 
-	has_enumeration_for :record, with: Enums::GoalieRecord
+	has_enumeration_for :verdict, with: Enums::GoalieRecord
 
 	## Scopes
 	scope :vs, lambda { |opp| where(opponent_id: opp) }
