@@ -6,9 +6,6 @@ module Pullers
 
         def self.run(date = Date.today - 1.day)
 
-            # Silence output
-            ActiveRecord::Base.logger = nil
-
             # construct url for date
             url = "http://www.hockey-reference.com/friv/dailyleaders.cgi?month=#{date.month}&day=#{date.day}&year=#{date.year}"
 
