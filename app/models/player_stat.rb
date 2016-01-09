@@ -29,16 +29,13 @@
 #
 
 class PlayerStat < ActiveRecord::Base
-	extend EnumerateIt
 
 	## Relationships
 	belongs_to :player
 	belongs_to :team
 	belongs_to :game, class_name: 'GameStat'
 
-	has_enumeration_for :decision, with: Enums::Decision
-
 	## Scopes
-	scope :vs, lambda { |opp| join(:game).where('game_stats.opponent_id': opp) }
-	scope :outcome, lambda { |dec| join(:game).where('game_stats.opponent_id': opp) }
+	scope :vs, lambda { |opp| joins(:game).where('game_stats.opponent_id': opp) }
+	scope :outcome, lambda { |dec| joins(:game).where('game_stats.opponent_id': opp) }
 end

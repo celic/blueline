@@ -26,7 +26,7 @@ class GoalieStat < ActiveRecord::Base
 	## Relationships
 	belongs_to :player
 	belongs_to :team
-	belongs_to :opponent, class_name: 'Team'
+	belongs_to :game, class_name: 'GameStat'
 
 	has_enumeration_for :verdict, with: Enums::GoalieRecord
 

@@ -34,13 +34,13 @@ class Player < ActiveRecord::Base
 	def stat_class
 		self.goalie? ? GoalieStat : PlayerStat
 	end
-	
-	def add_stats!(opponent, hash, date)
+
+	def add_stats!(game, values)
 
 		# dont add duplicate stats
-		return if stat_class.exists? player: self, date: date
+		return if stat_class.exists? player: self, game: game
 
-		stat_class.create! hash.merge(player: self, team: self.team, opponent: opponent, date: date)
+		stat_class.create! values.merge({ player: self, game: game })
 	end
 
 	def forward?
