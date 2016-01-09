@@ -4,10 +4,7 @@
 #
 #  id              :integer          not null, primary key
 #  player_id       :integer
-#  team_id         :integer
-#  opponent_id     :integer
-#  home            :boolean
-#  decision        :integer
+#  game_id         :integer
 #  verdict         :integer
 #  goals_against   :integer
 #  shots_against   :integer
@@ -16,12 +13,11 @@
 #  shutout         :boolean
 #  pim             :integer
 #  toi             :integer
-#  date            :date
 #
 # Indexes
 #
+#  index_goalie_stats_on_game_id    (game_id)
 #  index_goalie_stats_on_player_id  (player_id)
-#  index_goalie_stats_on_team_id    (team_id)
 #
 
 class GoalieStat < ActiveRecord::Base
@@ -30,7 +26,7 @@ class GoalieStat < ActiveRecord::Base
 	## Relationships
 	belongs_to :player
 	belongs_to :team
-	belongs_to :opponent, class_name: 'Team'
+	belongs_to :game, class_name: 'GameStat'
 
 	has_enumeration_for :verdict, with: Enums::GoalieRecord
 
