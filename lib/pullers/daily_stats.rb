@@ -21,6 +21,15 @@ module Pullers
             skaters = page.css('#skaters').css('tbody')
             goalies = page.css('#goalies').css('tbody')
 
+            team_goals = {}
+            team_ppgs = {}
+            team_shgs = {}
+            team_evgs = {}
+            team_shots = {}
+            team_records = {}
+            team_opponents = {}
+            team_goals_against = {}
+
             skaters.css('tr').each do |skater_row|
 
                 player = {
@@ -53,7 +62,25 @@ module Pullers
                 }
 
                 # store player stats
-                self.store_player player, stats, date
+                #self.store_player player, stats, date
+
+                # aggregate goals scored per team
+                team_goals[player["team"]] += stats["goals"]
+                team_ppgs[player["team"]] += stats["ppg"]
+                team_shgs[player["team"]] += stats["shg"]
+                team_evgs[player["team"]] += stats["evg"]
+                team_shots[player["team"]] += stats["shots"]
+
+                # collect unique teams
+                if not team_records.contains player["team"]
+                    team_records[player["team"]] = stats["decision"]
+                    team_opponents[player["team"]] = stats["opponent"]
+                end
+
+            end
+
+            team_records.each do |team, decision|
+                team_goals_against[team] = team_goals[team_opponents[team]]
             end
 
             goalies.css('tr').each do |goalie_row|
@@ -80,7 +107,7 @@ module Pullers
                 }
 
                 # store goalie stats
-                self.store_player player, stats, date
+                #self.store_player player, stats, date
             end
 
             Rails.logger.info "##### Pullers::DailyStats => Parsing complete"
