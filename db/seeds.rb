@@ -30,7 +30,7 @@ Team.create! abbreviation: 'CHI', city: 'Chicago', name: 'Blackhawks', state: 'I
 Team.create! abbreviation: 'COL', city: 'Denver', name: 'Avalanche', state: 'Colorado', full_name: 'Colorado', division_id: Enums::Division::CENTRAL
 Team.create! abbreviation: 'DAL', city: 'Dallas', name: 'Stars', state: 'Texas', division_id: Enums::Division::CENTRAL
 Team.create! abbreviation: 'STL', city: 'St. Louis', name: 'Blues', state: 'Missouri', division_id: Enums::Division::CENTRAL
-Team.create! abbreviation: 'ANA', city: 'Winnipeg', name: 'Jets', state: 'Manitoba', division_id: Enums::Division::CENTRAL
+Team.create! abbreviation: 'WPG', city: 'Winnipeg', name: 'Jets', state: 'Manitoba', division_id: Enums::Division::CENTRAL
 Team.create! abbreviation: 'MIN', city: 'St. Paul', name: 'Wild', state: 'Minnesota', full_name: 'Minnesota Wild', division_id: Enums::Division::CENTRAL
 Team.create! abbreviation: 'NSH', city: 'Nashville', name: 'Predators', state: 'Tennessee', division_id: Enums::Division::CENTRAL
 

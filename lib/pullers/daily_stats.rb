@@ -21,9 +21,22 @@ module Pullers
             skaters = page.css('#skaters').css('tbody')
             goalies = page.css('#goalies').css('tbody')
 
+			if skaters.empty?
+
+				Rails.logger.info '##### Pullers::DailyStats => No stats found'
+				Rails.logger.info '#####'
+
+				# skip date
+				return
+			end
+
+			Rails.logger.info '#####'
+            Rails.logger.info "##### Pullers::DailyStats => Parsing players"
+            Rails.logger.info '#####'
+
             skaters.css('tr').each do |skater_row|
 
-                player = {
+                player_info = {
                     key: self.unique_id(skater_row.css('td')[1]),
                     name: skater_row.css('td')[1].content,
                     position: Enums::Position.parse(skater_row.css('td')[2].content),
@@ -31,7 +44,7 @@ module Pullers
                 }
 
 				game_info = {
-					team: player[:team],
+					team: player_info[:team],
 					home: (skater_row.css('td')[4].content != '@'),
                     opponent: Team.by_abbrev(skater_row.css('td')[5].content),
                     decision: Enums::Decision.parse(skater_row.css('td')[6].content),
@@ -60,13 +73,20 @@ module Pullers
 				# update game record
 				game = self.update_game game_info, stats
 
+				# find player
+				player = self.find_player player_info
+
                 # store player stats
-                self.store_player player, game, stats
+                self.store_stats player, game, stats if player.skater?
 			end
+
+			Rails.logger.info '#####'
+            Rails.logger.info "##### Pullers::DailyStats => Parsing goalies"
+            Rails.logger.info '#####'
 
             goalies.css('tr').each do |goalie_row|
 
-                player = {
+                player_info = {
                     key: self.unique_id(goalie_row.css('td')[1]),
                     name: goalie_row.css('td')[1].content,
                     position: Enums::Position.parse(goalie_row.css('td')[2].content),
@@ -74,7 +94,7 @@ module Pullers
                 }
 
 				game_info = {
-					team: player[:team],
+					team: player_info[:team],
 					home: (goalie_row.css('td')[4].content != '@'),
                     opponent: Team.by_abbrev(goalie_row.css('td')[5].content),
                     decision: Enums::Decision.parse(goalie_row.css('td')[6].content),
@@ -95,19 +115,32 @@ module Pullers
 				# find game
 				game = self.find_game game_info
 
+				# find player
+				player = self.find_player player_info
+
                 # store goalie stats
-                self.store_player player, game, stats
+                self.store_stats player, game, stats if player.goalie?
             end
 
 			Rails.logger.info '#####'
-            Rails.logger.info "##### Pullers::DailyStats => Parsing complete"
+            Rails.logger.info "##### Pullers::DailyStats => Updating games"
+            Rails.logger.info '#####'
+
+			Game.where(date: date).each do |game|
+
+				# update teams records and points
+				self.update_teams game
+			end
+
+			Rails.logger.info '#####'
+            Rails.logger.info "##### Pullers::DailyStats => Done"
             Rails.logger.info '#####'
         end
 
         def self.unique_id(row)
 
             # get unique id
-            row.css('a').attribute('href').value.split('/').split('.').first
+            row.css('a').attribute('href').value.split('/').last.split('.').first
         end
 
 		def self.find_game(info)
@@ -120,6 +153,23 @@ module Pullers
 
 			# find or create game
 			Game.find_or_create_by date: info[:date], home: home, away: away
+		end
+
+		def self.find_player(info)
+
+			# find player for key
+            player = Player.find_by key: info[:key]
+
+            unless player
+
+                # create new player if one was not found
+                player = Player.create info
+
+                Rails.logger.info "##### Pullers::DailyStats => Created #{info[:name]}"
+            end
+
+			# return player
+			player
 		end
 
 		def self.update_game(info, stats)
@@ -143,21 +193,30 @@ module Pullers
 			game
 		end
 
-        def self.store_player(info, game, stats)
-
-            # find player for key
-            player = Player.find_by key: info[:key]
-
-            unless player
-
-                # create new player if one was not found
-                player = Player.create info
-
-                Rails.logger.info "##### Pullers::DailyStats => Created #{info[:name]}"
-            end
+        def self.store_stats(player, game, stats)
 
             # create stats record
             player.add_stats! game, stats
         end
+
+		def self.update_teams(game)
+
+			# get winning team
+			winner = game.stats.find_by(decision: Enums::Decision::WIN).team
+
+			# update record
+			winner.increment :wins
+			winner.increment :points, 2
+			winner.save!
+
+			# get other team
+			losing_record = game.stats.find_by('decision != ?', Enums::Decision::WIN)
+			loser = losing_record.team
+
+			# update record
+			loser.increment [ nil, nil, :losses, :ot, :so ][losing_record.decision]
+			loser.increment :points, Enums::Decision.points_for(losing_record.decision)
+			loser.save!
+		end
     end
 end

@@ -51,6 +51,10 @@ class Player < ActiveRecord::Base
 		Enums::Position.defenseman? self.position
 	end
 
+	def skater?
+		!goalie?
+	end
+
 	def goalie?
 		Enums::Position.goalie? self.position
 	end
