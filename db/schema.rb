@@ -11,32 +11,35 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20160109045609) do
+ActiveRecord::Schema.define(version: 20160110191709) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
   create_table "game_stats", force: :cascade do |t|
     t.integer "team_id"
-    t.integer "opponent_id"
     t.boolean "home"
     t.integer "decision"
-    t.date    "date"
     t.integer "goals"
     t.integer "ppg"
     t.integer "shg"
     t.integer "evg"
     t.integer "shots"
     t.integer "pim"
+    t.integer "game_id"
   end
 
-  add_index "game_stats", ["opponent_id"], name: "index_game_stats_on_opponent_id", using: :btree
+  add_index "game_stats", ["game_id"], name: "index_game_stats_on_game_id", using: :btree
   add_index "game_stats", ["team_id"], name: "index_game_stats_on_team_id", using: :btree
 
   create_table "games", force: :cascade do |t|
-    t.boolean "playoffs"
+    t.integer "home_id"
+    t.integer "away_id"
     t.date    "date"
   end
+
+  add_index "games", ["away_id"], name: "index_games_on_away_id", using: :btree
+  add_index "games", ["home_id"], name: "index_games_on_home_id", using: :btree
 
   create_table "goalie_stats", force: :cascade do |t|
     t.integer "player_id"
