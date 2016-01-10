@@ -26,11 +26,7 @@ class GoalieStat < ActiveRecord::Base
 	## Relationships
 	belongs_to :player
 	belongs_to :team
-	belongs_to :game, class_name: 'GameStat'
+	belongs_to :game
 
 	has_enumeration_for :verdict, with: Enums::GoalieRecord
-
-	## Scopes
-	scope :vs, lambda { |opp| where(opponent_id: opp) }
-	scope :outcome, lambda { |dec| where(decision: dec) }
 end

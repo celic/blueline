@@ -33,9 +33,5 @@ class PlayerStat < ActiveRecord::Base
 	## Relationships
 	belongs_to :player
 	belongs_to :team
-	belongs_to :game, class_name: 'GameStat'
-
-	## Scopes
-	scope :vs, lambda { |opp| joins(:game).where('game_stats.opponent_id': opp) }
-	scope :outcome, lambda { |dec| joins(:game).where('game_stats.opponent_id': opp) }
+	belongs_to :game
 end

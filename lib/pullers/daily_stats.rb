@@ -30,7 +30,7 @@ module Pullers
                     team: Team.by_abbrev(skater_row.css('td')[3].content)
                 }
 
-				game = {
+				game_info = {
 					team: player[:team],
 					home: (skater_row.css('td')[4].content != '@'),
                     opponent: Team.by_abbrev(skater_row.css('td')[5].content),
@@ -58,7 +58,7 @@ module Pullers
                 }
 
 				# update game record
-				game = self.update_game game, stats
+				game = self.update_game game_info, stats
 
                 # store player stats
                 self.store_player player, game, stats
@@ -73,10 +73,15 @@ module Pullers
                     team: Team.by_abbrev(goalie_row.css('td')[3].content)
                 }
 
-				opponent = Team.by_abbrev(goalie_row.css('td')[5].content)
-				game = GameStat.find_by team: player[:team], opponent: opponent, date: date
+				game_info = {
+					team: player[:team],
+					home: (goalie_row.css('td')[4].content != '@'),
+                    opponent: Team.by_abbrev(goalie_row.css('td')[5].content),
+                    decision: Enums::Decision.parse(goalie_row.css('td')[6].content),
+					date: date
+				}
 
-                 stats = {
+                stats = {
                     verdict: Enums::GoalieRecord.parse(goalie_row.css('td')[7].content),
                     goals_against: goalie_row.css('td')[8].content,
                     shots_against: goalie_row.css('td')[9].content,
@@ -87,10 +92,14 @@ module Pullers
                     toi: goalie_row.css('td')[14].attribute('csk').value
                 }
 
+				# find game
+				game = self.find_game game_info
+
                 # store goalie stats
                 self.store_player player, game, stats
             end
 
+			Rails.logger.info '#####'
             Rails.logger.info "##### Pullers::DailyStats => Parsing complete"
             Rails.logger.info '#####'
         end
@@ -98,22 +107,37 @@ module Pullers
         def self.unique_id(row)
 
             # get unique id
-            row.css('a').attribute('href').value.split('/').last[0..-6]
+            row.css('a').attribute('href').value.split('/').split('.').first
         end
+
+		def self.find_game(info)
+
+			# collect teams
+			teams = [ info[:team], info[:opponent] ]
+
+			# determine home and away team
+			home, away = info[:home] ? teams : teams.reverse
+
+			# find or create game
+			Game.find_or_create_by date: info[:date], home: home, away: away
+		end
 
 		def self.update_game(info, stats)
 
-			# find or create game
-			game = GameStat.find_or_create_by info
+			# find game
+			game = self.find_game info
+
+			# find or create game stat
+			game_stats = GameStat.find_or_create_by game: game, team: info[:team], home: info[:home], decision: info[:decision]
 
 			stats.each do |key, value|
 
 				# increment stat value
-				game.increment key, value.to_i if game.has_attribute?(key)
+				game_stats.increment key, value.to_i if game_stats.has_attribute?(key)
 			end
 
 			# save increments
-			game.save!
+			game_stats.save!
 
 			# return game
 			game

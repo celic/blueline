@@ -28,6 +28,9 @@ class Team < ActiveRecord::Base
 	## Relationships
 	has_many :players
 
+	has_many :stats, class_name: 'GameStat'
+	has_many :games, through: :stats, source: :game
+
 	## Scopes
 	scope :division, lambda { |div| where(division_id: div) }
 
