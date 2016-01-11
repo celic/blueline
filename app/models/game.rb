@@ -20,4 +20,10 @@ class Game < ActiveRecord::Base
 	belongs_to :away, class_name: 'Team'
 
 	has_many :stats, class_name: 'GameStat'
+
+	has_one :home_stats, -> (inst) { where(team_id: inst.home_id) }, class_name: 'GameStat'
+	has_one :away_stats, -> (inst) { where(team_id: inst.away_id) }, class_name: 'GameStat'
+
+	## Scopes
+	scope :participant, lambda { |team| where('home_id = :team or away_id = :team', team: team.id) }
 end
