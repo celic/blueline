@@ -1,6 +1,8 @@
 module API
 	class Players < Grape::API
 
+		represent Player, with: API::Entities::Player
+
 		resource :players do
 
 			desc 'Search for players'
@@ -34,7 +36,7 @@ module API
 					not_found! '404.1', 'Player was not found' unless player
 
 					# show player
-					present :player, player
+					present :player, player, team: true
 				end
 
 			end
