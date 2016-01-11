@@ -14,7 +14,7 @@ module API
 			get do
 
 				# find players
-				players = Player.where 'name like ?', "%#{params[:query]}%"
+				players = Player.where 'lower(name) like ?', "%#{params[:query].downcase}%"
 
 				# filter by team if provided
 				players = players.where team_id: params[:team_id] if params[:team_id]

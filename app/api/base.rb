@@ -6,6 +6,7 @@ module API
 
 		mount Players
 		mount Games
+		mount Teams
 
 		add_swagger_documentation hide_format: true
     end
