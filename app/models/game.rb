@@ -25,5 +25,5 @@ class Game < ActiveRecord::Base
 	has_one :away_stats, -> (inst) { where(team_id: inst.away_id) }, class_name: 'GameStat'
 
 	## Scopes
-	scope :participant, lambda { |team| where('home_id = :team or away_id = :team', team: team.id) }
+	scope :participant, lambda { |team_id| where('home_id = :team or away_id = :team', team: team_id) }
 end

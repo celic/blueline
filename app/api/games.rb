@@ -8,10 +8,10 @@ module API
 			desc 'Search for games'
 			params do
 				optional :date, type: Date
-				optional :team, type: String
+				optional :team_id, type: Integer
 
-				given :team do
-					optional :opponent, type: String
+				given :team_id do
+					optional :opponent_id, type: Integer
 					optional :home, type: Boolean
 				end
 			end
@@ -23,7 +23,7 @@ module API
 				# filter by date if provided
 				games = games.where date: params[:date] if params[:date]
 
-				if params[:team]
+				if params[:team_id]
 
 					# find games with team matching criteria
 					games =	if params[:home].nil?
@@ -40,7 +40,7 @@ module API
 							end
 
 					# filter by opponent also if provided
-					games = games.participant Team.by_abbrev(params[:opponent]) if params[:opponent]
+					games = games.participant params[:opponent_id] if params[:opponent_id]
 				end
 
 				# show games

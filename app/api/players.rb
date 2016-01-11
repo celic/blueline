@@ -6,7 +6,7 @@ module API
 			desc 'Search for players'
 			params do
 				optional :query, type: String, default: ''
-				optional :team, type: String
+				optional :team_id, type: Integer
 				optional :position, type: Integer, values: Enums::Position.list
 			end
 			get do
@@ -15,7 +15,7 @@ module API
 				players = Player.where 'name like ?', "%#{params[:query]}%"
 
 				# filter by team if provided
-				players = players.where team_id: Team.by_abbrev(params[:team]) if params[:team]
+				players = players.where team_id: params[:team_id] if params[:team_id]
 
 				# filter by position if provided
 				players = players.where position: params[:position] if params[:position]
