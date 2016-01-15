@@ -35,6 +35,10 @@ class Player < ActiveRecord::Base
 		self.goalie? ? GoalieStat : PlayerStat
 	end
 
+	def stats
+		self.stat_class.where player: self
+	end
+
 	def add_stats!(game, values)
 
 		# dont add duplicate stats

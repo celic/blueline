@@ -5,6 +5,7 @@ module API
         format :json
 
 		mount Players
+		mount PlayerStats
 		mount Games
 		mount Teams
 

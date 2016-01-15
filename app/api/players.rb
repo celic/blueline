@@ -26,6 +26,21 @@ module API
 				present :players, players
 			end
 
+			route_param :id do
+
+				desc 'Get player information'
+				get do
+
+					# find player
+					player = Player.find_by id: params[:id]
+					not_found! '404.1', 'Player was not found' unless player
+
+					# show player
+					present :player, player, team: true
+				end
+
+			end
+
 			route_param :key do
 
 				desc 'Get player information for key'
