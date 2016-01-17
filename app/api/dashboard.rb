@@ -10,7 +10,7 @@ module API
 				stats: PlayerStat.count + GoalieStat.count
 			}
 
-			present data
+			present :data, data, with: Grape::Presenters::Presenter
 		end
 
 	end
