@@ -6,6 +6,7 @@ module API
 
 		mount Players
 		mount PlayerStats
+		mount Dashboard
 		mount Games
 		mount Teams
 
