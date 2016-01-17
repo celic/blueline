@@ -204,17 +204,25 @@ module Pullers
 			# get winning team
 			winner = game.stats.find_by(decision: Enums::Decision::WIN).team
 
+            # get other team
+            losing_record = game.stats.find_by('decision != ?', Enums::Decision::WIN)
+            loser = losing_record.team
+
+            # game went to shootout
+            if game.stats.find_by('decision != ?', Enums::Decision::SOL)
+                winner.increment :sow
+
+            # game ended in regulatoin (or ot)
+            else
+                winner.increment :wins
+            end
+
 			# update record
-			winner.increment :wins
 			winner.increment :points, 2
 			winner.save!
 
-			# get other team
-			losing_record = game.stats.find_by('decision != ?', Enums::Decision::WIN)
-			loser = losing_record.team
-
 			# update record
-			loser.increment [ nil, nil, :losses, :ot, :so ][losing_record.decision]
+			loser.increment [ nil, nil, :losses, :ot, :sol ][losing_record.decision]
 			loser.increment :points, Enums::Decision.points_for(losing_record.decision)
 			loser.save!
 		end
