@@ -218,7 +218,7 @@ module Pullers
 
 				# overtime finish
 				winner.increment :wins
-				loser.increment :otl
+				loser.increment :ot
 
 			elsif game.stats.find_by('decision = ?', Enums::Decision::SOL)
 

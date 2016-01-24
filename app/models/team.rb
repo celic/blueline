@@ -34,6 +34,7 @@ class Team < ActiveRecord::Base
 
 	## Scopes
 	scope :division, lambda { |div| where(division_id: div) }
+	scope :standings, lambda { select('teams.*, (wins - sow) as row').order('points desc, row desc') }
 
 	## Class Methods
 	def self.by_abbrev(abbv)

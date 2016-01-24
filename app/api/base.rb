@@ -15,6 +15,7 @@ module API
 		mount Dashboard
 		mount Games
 		mount Teams
+		mount Standings
 
 		add_swagger_documentation hide_format: true
 	end
