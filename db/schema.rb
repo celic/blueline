@@ -103,7 +103,7 @@ ActiveRecord::Schema.define(version: 20160117204800) do
     t.integer "ot",           default: 0
     t.integer "sol",          default: 0
     t.integer "points",       default: 0
-    t.integer "sow"
+    t.integer "sow",          default: 0
   end
 
   add_index "teams", ["abbreviation"], name: "index_teams_on_abbreviation", using: :btree

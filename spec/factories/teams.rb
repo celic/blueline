@@ -14,7 +14,7 @@
 #  ot           :integer          default(0)
 #  sol          :integer          default(0)
 #  points       :integer          default(0)
-#  sow          :integer
+#  sow          :integer          default(0)
 #
 # Indexes
 #
