@@ -211,13 +211,11 @@ module Pullers
 			if losing_record.decision == Enums::Decision::LOSS
 
 				# regulation finish
-				winner.increment :wins
 				loser.increment :losses
 
 			elsif losing_record.decision == Enums::Decision::OTL
 
 				# overtime finish
-				winner.increment :wins
 				loser.increment :ot
 
 			elsif game.stats.find_by('decision = ?', Enums::Decision::SOL)
@@ -228,6 +226,7 @@ module Pullers
 			end
 
 			# update winner points
+			winner.increment :wins
 			winner.increment :points, 2
 			winner.save!
 
