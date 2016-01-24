@@ -13,7 +13,7 @@ module API
 			get do
 
 				# get teams
-				teams = Team.all.order:full_name
+				teams = Team.all.order :full_name
 
 				# filter by query if provided
 				teams = teams.where 'lower(full_name) like :query or lower(abbreviation) like :query', query: "%#{params[:query].downcase}%" if params[:query]

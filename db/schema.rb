@@ -11,7 +11,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20160110191709) do
+ActiveRecord::Schema.define(version: 20160117204800) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -101,8 +101,9 @@ ActiveRecord::Schema.define(version: 20160110191709) do
     t.integer "wins",         default: 0
     t.integer "losses",       default: 0
     t.integer "ot",           default: 0
-    t.integer "so",           default: 0
+    t.integer "sol",          default: 0
     t.integer "points",       default: 0
+    t.integer "sow",          default: 0
   end
 
   add_index "teams", ["abbreviation"], name: "index_teams_on_abbreviation", using: :btree

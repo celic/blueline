@@ -12,7 +12,8 @@
 #  wins         :integer          default(0)
 #  losses       :integer          default(0)
 #  ot           :integer          default(0)
-#  so           :integer          default(0)
+#  sow          :integer          default(0)
+#  sol          :integer          default(0)
 #  points       :integer          default(0)
 #
 # Indexes
@@ -33,6 +34,7 @@ class Team < ActiveRecord::Base
 
 	## Scopes
 	scope :division, lambda { |div| where(division_id: div) }
+	scope :standings, lambda { select('teams.*, (wins - sow) as row').order('points desc, row desc') }
 
 	## Class Methods
 	def self.by_abbrev(abbv)
