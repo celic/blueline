@@ -41,19 +41,21 @@ module API
 
 			end
 
-			route_param :key do
+			resource :key do
+				route_param :key do
 
-				desc 'Get player information for key'
-				get do
+					desc 'Get player information for key'
+					get do
 
-					# find player by key
-					player = Player.find_by key: params[:key]
-					not_found! '404.1', 'Player was not found' unless player
+						# find player by key
+						player = Player.find_by key: params[:key]
+						not_found! '404.1', 'Player was not found' unless player
 
-					# show player
-					present :player, player, team: true
+						# show player
+						present :player, player, team: true
+					end
+
 				end
-
 			end
 		end
 	end
