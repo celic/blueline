@@ -13,6 +13,7 @@
 #  pim             :integer
 #  toi             :integer
 #  game_id         :integer
+#  team_id         :integer
 #
 # Indexes
 #

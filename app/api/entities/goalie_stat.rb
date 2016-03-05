@@ -26,7 +26,7 @@ module API
 
 			expose :player, using: API::Entities::Player, if: :player
 			expose :game, using: API::Entities::Game
-			expose :verdict, :goals_against, :shots_against, :saves, :save_percentage, :shutout, :pim, :toi
+			expose :team_id, :verdict, :goals_against, :shots_against, :saves, :save_percentage, :shutout, :pim, :toi
 
 		end
 	end

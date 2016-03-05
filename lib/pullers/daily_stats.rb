@@ -44,7 +44,7 @@ module Pullers
 				}
 
 				game_info = {
-					team: player_info[:team],
+					team: Team.by_abbrev(skater_row.css('td')[3].content),
 					home: (skater_row.css('td')[4].content != '@'),
 					opponent: Team.by_abbrev(skater_row.css('td')[5].content),
 					decision: Enums::Decision.parse(skater_row.css('td')[6].content),
@@ -52,6 +52,7 @@ module Pullers
 				}
 
 				stats = {
+					team: Team.by_abbrev(skater_row.css('td')[3].content),
 					goals: skater_row.css('td')[7].content,
 					assists: skater_row.css('td')[8].content,
 					points: skater_row.css('td')[9].content,
@@ -94,7 +95,7 @@ module Pullers
 				}
 
 				game_info = {
-					team: player_info[:team],
+					team: Team.by_abbrev(goalie_row.css('td')[3].content),
 					home: (goalie_row.css('td')[4].content != '@'),
 					opponent: Team.by_abbrev(goalie_row.css('td')[5].content),
 					decision: Enums::Decision.parse(goalie_row.css('td')[6].content),
@@ -102,6 +103,7 @@ module Pullers
 				}
 
 				stats = {
+					team: Team.by_abbrev(goalie_row.css('td')[3].content),
 					verdict: Enums::GoalieRecord.parse(goalie_row.css('td')[7].content),
 					goals_against: goalie_row.css('td')[8].content,
 					shots_against: goalie_row.css('td')[9].content,

@@ -34,7 +34,7 @@ module API
 
 			expose :player, using: API::Entities::Player, if: :player
 			expose :game, using: API::Entities::Game
-			expose :goals, :assists, :points, :plusminus, :pim, :evg, :ppg, :shg, :gwg, :eva, :ppa, :sha, :shots, :shot_percentage, :shifts, :toi
+			expose :team_id, :goals, :assists, :points, :plusminus, :pim, :evg, :ppg, :shg, :gwg, :eva, :ppa, :sha, :shots, :shot_percentage, :shifts, :toi
 
 		end
 	end

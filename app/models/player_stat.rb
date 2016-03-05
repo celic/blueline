@@ -4,7 +4,6 @@
 #
 #  id              :integer          not null, primary key
 #  player_id       :integer
-#  game_id         :integer
 #  goals           :integer
 #  assists         :integer
 #  points          :integer
@@ -21,6 +20,8 @@
 #  shot_percentage :decimal(5, 2)
 #  shifts          :integer
 #  toi             :integer
+#  game_id         :integer
+#  team_id         :integer
 #
 # Indexes
 #

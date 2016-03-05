@@ -4,7 +4,6 @@
 #
 #  id              :integer          not null, primary key
 #  player_id       :integer
-#  game_id         :integer
 #  verdict         :integer
 #  goals_against   :integer
 #  shots_against   :integer
@@ -13,6 +12,8 @@
 #  shutout         :boolean
 #  pim             :integer
 #  toi             :integer
+#  game_id         :integer
+#  team_id         :integer
 #
 # Indexes
 #
