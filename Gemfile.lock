@@ -51,6 +51,7 @@ GEM
     coercible (1.0.0)
       descendants_tracker (~> 0.0.1)
     concurrent-ruby (1.0.0)
+    database_cleaner (1.5.1)
     descendants_tracker (0.0.4)
       thread_safe (~> 0.3, >= 0.3.1)
     diff-lcs (1.2.5)
@@ -191,6 +192,7 @@ PLATFORMS
 
 DEPENDENCIES
   annotate
+  database_cleaner
   enumerate_it
   factory_girl_rails (~> 4.0)
   faker

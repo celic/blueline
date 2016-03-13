@@ -10,26 +10,26 @@ module Enums
       g: [5, 'Goalie']
     )
 
-    ## Class Methods
-    def self.forwards
-      [LW, C, RW]
-    end
+    class << self
+      def forwards
+        [LW, C, RW]
+      end
 
-    ## Helpers
-    def self.parse(str)
-      value_for(str)
-    end
+      def parse(str)
+        value_for(str.upcase)
+      end
 
-    def self.forward?(pos)
-      forwards.include? pos
-    end
+      def forward?(pos)
+        forwards.include? pos
+      end
 
-    def self.defenseman?(pos)
-      pos == D
-    end
+      def defenseman?(pos)
+        pos == D
+      end
 
-    def self.goalie?(pos)
-      pos == G
+      def goalie?(pos)
+        pos == G
+      end
     end
   end
 end

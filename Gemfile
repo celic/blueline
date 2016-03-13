@@ -31,6 +31,8 @@ group :development, :test do
   gem 'rack-test'
   gem 'factory_girl_rails', '~> 4.0'
 
+  gem 'database_cleaner'
+
   # Linter
   gem 'rubocop', '~> 0.35.0'
 
