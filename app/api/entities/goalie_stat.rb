@@ -21,13 +21,13 @@
 #
 
 module API
-	module Entities
-		class GoalieStat < Grape::Entity
+  module Entities
+    class GoalieStat < Grape::Entity
 
-			expose :player, using: API::Entities::Player, if: :player
-			expose :game, using: API::Entities::Game
-			expose :team_id, :verdict, :goals_against, :shots_against, :saves, :save_percentage, :shutout, :pim, :toi
+      expose :player, using: API::Entities::Player, if: :player
+      expose :game, using: API::Entities::Game
+      expose :team_id, :verdict, :goals_against, :shots_against, :saves, :save_percentage, :shutout, :pim, :toi
 
-		end
-	end
+    end
+  end
 end

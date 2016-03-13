@@ -31,8 +31,8 @@
 
 class PlayerStat < ActiveRecord::Base
 
-	## Relationships
-	belongs_to :player
-	belongs_to :team
-	belongs_to :game
+  ## Relationships
+  belongs_to :player
+  belongs_to :team
+  belongs_to :game
 end

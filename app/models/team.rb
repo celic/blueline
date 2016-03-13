@@ -23,32 +23,32 @@
 
 class Team < ActiveRecord::Base
 
-	## Callbacks
-	before_create :generate_full_name
+  ## Callbacks
+  before_create :generate_full_name
 
-	## Relationships
-	has_many :players
+  ## Relationships
+  has_many :players
 
-	has_many :stats, class_name: 'GameStat'
-	has_many :games, through: :stats, source: :game
+  has_many :stats, class_name: 'GameStat'
+  has_many :games, through: :stats, source: :game
 
-	## Scopes
-	scope :division, lambda { |div| where(division_id: div) }
-	scope :standings, lambda { select('teams.*, (wins - sow) as row').order('points desc, row desc') }
+  ## Scopes
+  scope :division, lambda { |div| where(division_id: div) }
+  scope :standings, lambda { select('teams.*, (wins - sow) as row').order('points desc, row desc') }
 
-	## Class Methods
-	def self.by_abbrev(abbv)
-		self.find_by abbreviation: abbv.to_s.upcase
-	end
+  ## Class Methods
+  def self.by_abbrev(abbv)
+    self.find_by abbreviation: abbv.to_s.upcase
+  end
 
-	## Private Methods
-	private
-	def generate_full_name
+  ## Private Methods
+  private
+  def generate_full_name
 
-		# set default full name if not set
-		self.full_name ||= "#{self.city} #{self.name}"
+    # set default full name if not set
+    self.full_name ||= "#{self.city} #{self.name}"
 
-		# continue with creation
-		true
-	end
+    # continue with creation
+    true
+  end
 end

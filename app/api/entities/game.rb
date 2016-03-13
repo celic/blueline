@@ -14,18 +14,18 @@
 #
 
 module API
-	module Entities
-		class Game < Grape::Entity
+  module Entities
+    class Game < Grape::Entity
 
-			expose :id
-			expose :home, using: API::Entities::Team
-			expose :home_stats
+      expose :id
+      expose :home, using: API::Entities::Team
+      expose :home_stats
 
-			expose :away, using: API::Entities::Team
-			expose :away_stats
+      expose :away, using: API::Entities::Team
+      expose :away_stats
 
-			expose :date
+      expose :date
 
-		end
-	end
+    end
+  end
 end

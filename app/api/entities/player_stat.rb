@@ -29,13 +29,13 @@
 #
 
 module API
-	module Entities
-		class PlayerStat < Grape::Entity
+  module Entities
+    class PlayerStat < Grape::Entity
 
-			expose :player, using: API::Entities::Player, if: :player
-			expose :game, using: API::Entities::Game
-			expose :team_id, :goals, :assists, :points, :plusminus, :pim, :evg, :ppg, :shg, :gwg, :eva, :ppa, :sha, :shots, :shot_percentage, :shifts, :toi
+      expose :player, using: API::Entities::Player, if: :player
+      expose :game, using: API::Entities::Game
+      expose :team_id, :goals, :assists, :points, :plusminus, :pim, :evg, :ppg, :shg, :gwg, :eva, :ppa, :sha, :shots, :shot_percentage, :shifts, :toi
 
-		end
-	end
+    end
+  end
 end

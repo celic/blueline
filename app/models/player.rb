@@ -14,51 +14,51 @@
 #
 
 class Player < ActiveRecord::Base
-	extend EnumerateIt
+  extend EnumerateIt
 
-	## Relationships
-	belongs_to :team
+  ## Relationships
+  belongs_to :team
 
-	has_many :player_stats
-	has_many :goalie_stats
+  has_many :player_stats
+  has_many :goalie_stats
 
-	has_enumeration_for :position, with: Enums::Position
+  has_enumeration_for :position, with: Enums::Position
 
-	## Scopes
-	scope :forwards, lambda { where(position: Enums::Position.forwards) }
-	scope :defensemen, lambda { where(position: Enums::Position::D) }
-	scope :goalies, lambda { where(position: Enums::Position::G) }
+  ## Scopes
+  scope :forwards, lambda { where(position: Enums::Position.forwards) }
+  scope :defensemen, lambda { where(position: Enums::Position::D) }
+  scope :goalies, lambda { where(position: Enums::Position::G) }
 
-	## Methods
-	def stat_class
-		self.goalie? ? GoalieStat : PlayerStat
-	end
+  ## Methods
+  def stat_class
+    self.goalie? ? GoalieStat : PlayerStat
+  end
 
-	def stats
-		self.stat_class.where player: self
-	end
+  def stats
+    self.stat_class.where player: self
+  end
 
-	def add_stats!(game, values)
+  def add_stats!(game, values)
 
-		# dont add duplicate stats
-		return if stat_class.exists? player: self, game: game
+    # dont add duplicate stats
+    return if stat_class.exists? player: self, game: game
 
-		stat_class.create! values.merge({ player: self, game: game })
-	end
+    stat_class.create! values.merge({ player: self, game: game })
+  end
 
-	def forward?
-		Enums::Position.forward? self.position
-	end
+  def forward?
+    Enums::Position.forward? self.position
+  end
 
-	def defenseman?
-		Enums::Position.defenseman? self.position
-	end
+  def defenseman?
+    Enums::Position.defenseman? self.position
+  end
 
-	def skater?
-		!goalie?
-	end
+  def skater?
+    !goalie?
+  end
 
-	def goalie?
-		Enums::Position.goalie? self.position
-	end
+  def goalie?
+    Enums::Position.goalie? self.position
+  end
 end

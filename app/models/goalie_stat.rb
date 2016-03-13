@@ -22,12 +22,12 @@
 #
 
 class GoalieStat < ActiveRecord::Base
-	extend EnumerateIt
+  extend EnumerateIt
 
-	## Relationships
-	belongs_to :player
-	belongs_to :team
-	belongs_to :game
+  ## Relationships
+  belongs_to :player
+  belongs_to :team
+  belongs_to :game
 
-	has_enumeration_for :verdict, with: Enums::GoalieRecord
+  has_enumeration_for :verdict, with: Enums::GoalieRecord
 end

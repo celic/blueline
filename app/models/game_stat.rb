@@ -21,13 +21,13 @@
 #
 
 class GameStat < ActiveRecord::Base
-	extend EnumerateIt
+  extend EnumerateIt
 
-	## Relationships
-	belongs_to :team
-	belongs_to :opponent, class_name: 'Team'
+  ## Relationships
+  belongs_to :team
+  belongs_to :opponent, class_name: 'Team'
 
-	belongs_to :game
+  belongs_to :game
 
-	has_enumeration_for :decision, with: Enums::Decision, helpers: true
+  has_enumeration_for :decision, with: Enums::Decision, helpers: true
 end
