@@ -26,7 +26,7 @@ module API
             stats = player.stats
 
             if params[:game_id]
-            
+
               # get starting game
               start_game = Game.find_by id: params[:game_id]
               not_found! '404.2', 'Game was not found' unless start_game

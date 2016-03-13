@@ -16,7 +16,6 @@
 class Player < ActiveRecord::Base
   extend EnumerateIt
 
-  ## Relationships
   belongs_to :team
 
   has_many :player_stats
@@ -24,34 +23,32 @@ class Player < ActiveRecord::Base
 
   has_enumeration_for :position, with: Enums::Position
 
-  ## Scopes
-  scope :forwards, lambda { where(position: Enums::Position.forwards) }
-  scope :defensemen, lambda { where(position: Enums::Position::D) }
-  scope :goalies, lambda { where(position: Enums::Position::G) }
+  scope :forwards, -> { where(position: Enums::Position.forwards) }
+  scope :defensemen, -> { where(position: Enums::Position::D) }
+  scope :goalies, -> { where(position: Enums::Position::G) }
 
-  ## Methods
   def stat_class
-    self.goalie? ? GoalieStat : PlayerStat
+    goalie? ? GoalieStat : PlayerStat
   end
 
   def stats
-    self.stat_class.where player: self
+    stat_class.where(player: self)
   end
 
   def add_stats!(game, values)
 
     # dont add duplicate stats
-    return if stat_class.exists? player: self, game: game
+    return if stat_class.exists?(player: self, game: game)
 
-    stat_class.create! values.merge({ player: self, game: game })
+    stat_class.create! values.merge(player: self, game: game)
   end
 
   def forward?
-    Enums::Position.forward? self.position
+    Enums::Position.forward?(position)
   end
 
   def defenseman?
-    Enums::Position.defenseman? self.position
+    Enums::Position.defenseman?(position)
   end
 
   def skater?
@@ -59,6 +56,6 @@ class Player < ActiveRecord::Base
   end
 
   def goalie?
-    Enums::Position.goalie? self.position
+    Enums::Position.goalie?(position)
   end
 end

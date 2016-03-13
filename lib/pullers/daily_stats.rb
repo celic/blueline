@@ -31,13 +31,13 @@ module Pullers
       end
 
       Rails.logger.info '#####'
-      Rails.logger.info "##### Pullers::DailyStats => Parsing players"
+      Rails.logger.info '##### Pullers::DailyStats => Parsing players'
       Rails.logger.info '#####'
 
       skaters.css('tr').each do |skater_row|
 
         player_info = {
-          key: self.unique_id(skater_row.css('td')[1]),
+          key: unique_id(skater_row.css('td')[1]),
           name: skater_row.css('td')[1].content,
           position: Enums::Position.parse(skater_row.css('td')[2].content),
           team: Team.by_abbrev(skater_row.css('td')[3].content)
@@ -72,23 +72,23 @@ module Pullers
         }
 
         # update game record
-        game = self.update_game game_info, stats
+        game = update_game(game_info, stats)
 
         # find player
-        player = self.find_player player_info
+        player = find_player(player_info)
 
         # store player stats
-        self.store_stats player, game, stats if player.skater?
+        store_stats(player, game, stats) if player.skater?
       end
 
       Rails.logger.info '#####'
-      Rails.logger.info "##### Pullers::DailyStats => Parsing goalies"
+      Rails.logger.info '##### Pullers::DailyStats => Parsing goalies'
       Rails.logger.info '#####'
 
       goalies.css('tr').each do |goalie_row|
 
         player_info = {
-          key: self.unique_id(goalie_row.css('td')[1]),
+          key: unique_id(goalie_row.css('td')[1]),
           name: goalie_row.css('td')[1].content,
           position: Enums::Position.parse(goalie_row.css('td')[2].content),
           team: Team.by_abbrev(goalie_row.css('td')[3].content)
@@ -115,46 +115,40 @@ module Pullers
         }
 
         # find game
-        game = self.find_game game_info
+        game = find_game(game_info)
 
         # find player
-        player = self.find_player player_info
+        player = find_player(player_info)
 
         # store goalie stats
-        self.store_stats player, game, stats if player.goalie?
+        store_stats(player, game, stats) if player.goalie?
       end
 
       Rails.logger.info '#####'
-      Rails.logger.info "##### Pullers::DailyStats => Updating games"
+      Rails.logger.info '##### Pullers::DailyStats => Updating games'
       Rails.logger.info '#####'
 
-      Game.where(date: date).each do |game|
-
-        # update teams records and points
-        self.update_teams game
-      end
+      Game.where(date: date).each { |game| update_teams(game) }
 
       Rails.logger.info '#####'
-      Rails.logger.info "##### Pullers::DailyStats => Done"
+      Rails.logger.info '##### Pullers::DailyStats => Done'
       Rails.logger.info '#####'
     end
 
     def self.unique_id(row)
-
-      # get unique id
       row.css('a').attribute('href').value.split('/').last.split('.').first
     end
 
     def self.find_game(info)
 
       # collect teams
-      teams = [ info[:team], info[:opponent] ]
+      teams = [info[:team], info[:opponent]]
 
       # determine home and away team
       home, away = info[:home] ? teams : teams.reverse
 
       # find or create game
-      Game.find_or_create_by date: info[:date], home: home, away: away
+      Game.find_or_create_by(date: info[:date], home: home, away: away)
     end
 
     def self.find_player(info)
@@ -177,7 +171,7 @@ module Pullers
     def self.update_game(info, stats)
 
       # find game
-      game = self.find_game info
+      game = find_game(info)
 
       # find or create game stat
       game_stats = GameStat.find_or_create_by game: game, team: info[:team], home: info[:home], decision: info[:decision]
@@ -185,7 +179,7 @@ module Pullers
       stats.each do |key, value|
 
         # increment stat value
-        game_stats.increment key, value.to_i if game_stats.has_attribute?(key)
+        game_stats.increment(key, value.to_i) if game_stats.has_attribute?(key)
       end
 
       # save increments
@@ -198,7 +192,7 @@ module Pullers
     def self.store_stats(player, game, stats)
 
       # create stats record
-      player.add_stats! game, stats
+      player.add_stats!(game, stats)
     end
 
     def self.update_teams(game)

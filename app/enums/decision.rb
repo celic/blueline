@@ -12,13 +12,13 @@ module Enums
 
     ## Helpers
     def self.parse(str)
-      self.enumeration.each do |key, value|
+      enumeration.each_value do |value|
         return value[0] if value[1] == str
       end
     end
 
     def self.points_for(decision)
-      self.enumeration.each do |key, value|
+      enumeration.each_value do |value|
         return value[2] if value[0] == decision
       end
     end

@@ -10,16 +10,16 @@ module Enums
     )
 
     ## Constants
-    EAST = [ self::METRO, self::ATLANTIC ]
-    WEST = [ self::PACIFIC, self::CENTRAL ]
+    EAST = [METRO, ATLANTIC]
+    WEST = [PACIFIC, CENTRAL]
 
     ## Helpers
     def self.east?(division)
-      self::EAST.include? division
+      EAST.include?(division)
     end
 
     def self.west?(division)
-      self::WEST.include? division
+      WEST.include?(division)
     end
   end
 end

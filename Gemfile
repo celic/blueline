@@ -31,6 +31,9 @@ group :development, :test do
   gem 'rack-test'
   gem 'factory_girl_rails', '~> 4.0'
 
+  # Linter
+  gem 'rubocop', '~> 0.35.0'
+
   # Model Sanity
   gem 'annotate'
 

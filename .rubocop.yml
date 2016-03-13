@@ -1,0 +1,10 @@
+AllCops:
+  DisplayCopNames: true
+  Exclude:
+    - 'db/**/*'
+    - 'bin/**/*'
+    - 'config/**/*'
+    - 'lib/tasks/**/*'
+    - 'spec/**/*'
+
+inherit_from: .rubocop_todo.yml

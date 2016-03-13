@@ -3,7 +3,7 @@ module API
 
     desc 'Get overall stat figures'
     get :dashboard do
-      
+
       data = {
         players: Player.count,
         games: Game.count,

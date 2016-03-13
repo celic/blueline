@@ -11,7 +11,7 @@ module Enums
 
     ## Helpers
     def self.parse(str)
-      self.enumeration.each do |key, value|
+      enumeration.each_value do |value|
         return value[0] if value[1] == str
       end
     end

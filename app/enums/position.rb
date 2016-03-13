@@ -12,24 +12,24 @@ module Enums
 
     ## Class Methods
     def self.forwards
-      [self::LW, self::C, self::RW]
+      [LW, C, RW]
     end
 
     ## Helpers
     def self.parse(str)
-      self.value_for(str)
+      value_for(str)
     end
 
     def self.forward?(pos)
-      self.forwards.include? pos
+      forwards.include? pos
     end
 
     def self.defenseman?(pos)
-      pos == self::D
+      pos == D
     end
 
     def self.goalie?(pos)
-      pos == self::G
+      pos == G
     end
   end
 end

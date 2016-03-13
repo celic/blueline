@@ -8,7 +8,7 @@ module API
       desc 'Search for teams'
       params do
         optional :query, type: String
-        optional :division, types: [ Integer, Array[Integer] ]
+        optional :division, types: [Integer, Array[Integer]]
       end
       get do
 

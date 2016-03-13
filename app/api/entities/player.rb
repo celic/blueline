@@ -20,7 +20,7 @@ module API
 
       expose :id, :name, :position, :key
 
-      expose :team, using: API::Entities::Team, if: :team 
+      expose :team, using: API::Entities::Team, if: :team
 
     end
   end
