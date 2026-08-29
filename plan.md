@@ -9,7 +9,8 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 
 ## 1. Data already collected but unreachable
 
-These need no new ingestion. The rows are in the database; nothing reads them.
+These need no new ingestion. The rows are in the database and the query layer can already reach
+them; what is missing is a way to ask for them.
 
 ### 1.1 Surface goalie stats — `todo`
 
@@ -39,6 +40,37 @@ hardcoded in three places in `StatsQueryService.cs` (`RegularSeasonSkaterStats`,
   split or filter it to match.
 - Playoff series are not evenly sized, so "game number" on the x axis means something different
   than it does in the regular season. Decide whether playoff trends chart by game number or date.
+
+### 1.3 Extend multi-player comparison — `todo`
+
+Overlaying several players' stats on one chart **is already built and working** on the player
+page (`src/Blueline.Web/Components/Pages/PlayerTrend.razor`): pick players from "Compare with",
+they appear as removable coloured chips, and their series are drawn on the same axes in both
+cumulative and per-game views. Shorter seasons are padded with nulls so every line stays aligned
+by game number, and the per-game view drops the raw bars once more than one player is shown,
+since overlapping bars are unreadable.
+
+What is missing is reach, not the mechanism:
+
+- **Only the top 40 scorers can be selected.** Both calls that build the candidate list are
+  `SearchPlayersAsync(_seasonId, null, 40)`, so 1,023 of the league's 1,063 players are silently
+  absent from the picker — every depth forward, most defencemen, every goalie. This is the real
+  limitation and the one worth fixing first. `SearchPlayersAsync` already accepts a search term;
+  the picker needs to be a search box rather than a fixed dropdown.
+- **Capped at 3 comparisons** (4 lines total), matching the 4-colour palette in
+  `ChartSpec.cs`. Raising the cap means extending `ChartPalette.Series` with colours that stay
+  distinguishable on the dark background — past roughly 6 lines a chart stops being readable, so
+  this should be a deliberate ceiling rather than unbounded.
+- **Same season only.** Comparisons re-fetch using the page's `_seasonId`, so a player cannot be
+  compared against their own earlier season. Career-arc comparison ("McDavid at 24 vs at 22") is
+  a different and arguably more interesting question, and needs the compared series to carry
+  their own season.
+- **Teams cannot be compared at all.** `TeamTrend.razor` has no comparison UI, though
+  `GetTeamTrendAsync` would support it unchanged — two clubs' points pace on one chart is the
+  natural way to read a playoff race.
+- **The API cannot express it.** `/api/players/{id}/trend` returns one subject, so an external
+  consumer has to make N calls and align the series itself. A `?compare=id,id` parameter, or an
+  endpoint accepting several ids, would let the API answer the same question the UI does.
 
 ---
 
