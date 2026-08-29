@@ -1,0 +1,98 @@
+@page "/teams"
+@rendermode InteractiveServer
+@inject StatsQueryService Queries
+
+<PageTitle>Teams — Blueline</PageTitle>
+
+<div class="page-head">
+    <h1>Teams</h1>
+    <p>Final regular-season standings. Open a team to see how it banked points across the year.</p>
+</div>
+
+<div class="controls">
+    <div class="field">
+        <label for="season">Season</label>
+        <select id="season" value="@_seasonId" @onchange="OnSeasonChanged">
+            @foreach (var season in _seasons)
+            {
+                <option value="@season.SeasonId">@season.Label</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (_teams.Count == 0)
+{
+    <div class="empty">No team records stored for this season.</div>
+}
+else
+{
+    <div class="card">
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="rank">#</th>
+                        <th>Team</th>
+                        <th class="num">GP</th>
+                        <th class="num">W</th>
+                        <th class="num">L</th>
+                        <th class="num">OTL</th>
+                        <th class="num">PTS</th>
+                        <th class="num">PTS%</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var (team, index) in _teams.Select((t, i) => (t, i)))
+                    {
+                        <tr>
+                            <td class="rank">@(index + 1)</td>
+                            <td>
+                                <a href="/teams/@team.Id?season=@_seasonId">
+                                    @if (team.LogoUrl is not null)
+                                    {
+                                        <img class="headshot" src="@team.LogoUrl" alt="" loading="lazy" />
+                                    }
+                                    @team.Name
+                                </a>
+                            </td>
+                            <td class="num muted">@team.GamesPlayed</td>
+                            <td class="num">@team.Wins</td>
+                            <td class="num">@team.Losses</td>
+                            <td class="num">@team.OvertimeLosses</td>
+                            <td class="num"><strong>@team.StandingsPoints</strong></td>
+                            <td class="num muted">@PointsPercentage(team).ToString("F3")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<SeasonSummary> _seasons = [];
+    private IReadOnlyList<TeamSummary> _teams = [];
+    private int _seasonId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _seasons = await Queries.GetSeasonsAsync();
+        if (_seasons.Count == 0) return;
+
+        _seasonId = _seasons[0].SeasonId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _teams = await Queries.GetTeamsAsync(_seasonId);
+
+    private async Task OnSeasonChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var seasonId)) _seasonId = seasonId;
+        await LoadAsync();
+    }
+
+    /// <summary>Share of the two points available per game — the fair way to compare uneven games played.</summary>
+    private static double PointsPercentage(TeamSummary team) =>
+        team.GamesPlayed == 0 ? 0 : (double)team.StandingsPoints / (team.GamesPlayed * 2);
+}

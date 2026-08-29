@@ -1,0 +1,188 @@
+@page "/teams/{TeamId:int}"
+@rendermode InteractiveServer
+@inject StatsQueryService Queries
+
+<PageTitle>@(_series?.SubjectName ?? "Team") — Blueline</PageTitle>
+
+@if (_series is null || _series.Points.Count == 0)
+{
+    <div class="empty">No stored games for this team in @StatsQueryService.FormatSeason(_seasonId).</div>
+}
+else
+{
+    <div class="page-head">
+        <h1>@_series.SubjectName</h1>
+        <p>@_series.StatLabel across @_series.Points.Count games of @StatsQueryService.FormatSeason(_seasonId)</p>
+    </div>
+
+    <div class="controls">
+        <div class="field">
+            <label for="stat">Stat</label>
+            <select id="stat" value="@_stat" @onchange="OnStatChanged">
+                @foreach (var stat in StatDefinition.Team)
+                {
+                    <option value="@stat.Key">@stat.Label</option>
+                }
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="season">Season</label>
+            <select id="season" value="@_seasonId" @onchange="OnSeasonChanged">
+                @foreach (var season in _seasons)
+                {
+                    <option value="@season.SeasonId">@season.Label</option>
+                }
+            </select>
+        </div>
+
+        <div class="field">
+            <label>View</label>
+            <div class="segmented">
+                <button class="@(_cumulative ? "on" : "")" @onclick="() => SetView(true)">Cumulative</button>
+                <button class="@(!_cumulative ? "on" : "")" @onclick="() => SetView(false)">Per game</button>
+            </div>
+        </div>
+
+        @if (!_cumulative)
+        {
+            <div class="field">
+                <label for="window">Rolling window</label>
+                <select id="window" value="@_window" @onchange="OnWindowChanged">
+                    @foreach (var w in new[] { 5, 10, 15, 20 })
+                    {
+                        <option value="@w">@w games</option>
+                    }
+                </select>
+            </div>
+        }
+    </div>
+
+    <div class="card">
+        <div class="stat-row">
+            <div>
+                <div class="value">@_series.Total.ToString("0")</div>
+                <div class="label">Total @_series.StatLabel.ToLowerInvariant()</div>
+            </div>
+            <div>
+                <div class="value">@_series.PerGame.ToString("F2")</div>
+                <div class="label">Per game</div>
+            </div>
+            <div>
+                <div class="value">@_record</div>
+                <div class="label">Record</div>
+            </div>
+        </div>
+        <TrendChart Spec="_spec" @key="_chartKey" />
+    </div>
+}
+
+@code {
+    [Parameter] public int TeamId { get; set; }
+    [SupplyParameterFromQuery(Name = "season")] public int? SeasonQuery { get; set; }
+
+    private IReadOnlyList<SeasonSummary> _seasons = [];
+    private TrendSeries? _series;
+    private ChartSpec? _spec;
+    private string _record = "";
+
+    private int _seasonId;
+    private string _stat = "points";
+    private int _window = 10;
+    private bool _cumulative = true;
+    private string _chartKey = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _seasons = await Queries.GetSeasonsAsync();
+        if (_seasons.Count == 0) return;
+
+        _seasonId = SeasonQuery ?? _seasons[0].SeasonId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _series = await Queries.GetTeamTrendAsync(TeamId, _seasonId, _stat, _window);
+
+        var standings = await Queries.GetTeamsAsync(_seasonId);
+        var team = standings.FirstOrDefault(t => t.Id == TeamId);
+        _record = team is null ? "" : $"{team.Wins}-{team.Losses}-{team.OvertimeLosses}";
+
+        BuildSpec();
+    }
+
+    private void BuildSpec()
+    {
+        if (_series is null || _series.Points.Count == 0)
+        {
+            _spec = null;
+            return;
+        }
+
+        var labels = _series.Points.Select(p => p.GameNumber.ToString()).ToList();
+        var datasets = new List<ChartDataset>();
+
+        if (_cumulative)
+        {
+            datasets.Add(new ChartDataset(
+                _series.StatLabel,
+                _series.Points.Select(p => (double?)p.Cumulative).ToList(),
+                ChartPalette.For(0),
+                Fill: true));
+        }
+        else
+        {
+            datasets.Add(new ChartDataset(
+                "Per game",
+                _series.Points.Select(p => (double?)p.Value).ToList(),
+                "#475569",
+                Kind: "bar"));
+
+            datasets.Add(new ChartDataset(
+                $"{_window}-game average",
+                _series.Points.Select(p => p.RollingAverage).ToList(),
+                ChartPalette.For(0)));
+        }
+
+        var subtitles = _series.Points
+            .Select(p => $"Game {p.GameNumber} — {(p.IsHome ? "vs" : "@")} {p.Opponent} · {p.Date:MMM d}")
+            .ToList();
+
+        _spec = new ChartSpec(
+            labels,
+            datasets,
+            XLabel: "Game number",
+            YLabel: _cumulative ? $"Cumulative {_series.StatLabel.ToLowerInvariant()}" : _series.StatLabel,
+            // Goal differential swings negative, so pinning the axis to zero would hide the shape.
+            BeginAtZero: _stat != "goalDifferential",
+            Precise: !_cumulative,
+            Subtitles: subtitles);
+
+        _chartKey = $"{TeamId}-{_seasonId}-{_stat}-{_window}-{_cumulative}";
+    }
+
+    private async Task OnStatChanged(ChangeEventArgs e)
+    {
+        _stat = e.Value?.ToString() ?? "points";
+        await LoadAsync();
+    }
+
+    private async Task OnSeasonChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var seasonId)) _seasonId = seasonId;
+        await LoadAsync();
+    }
+
+    private async Task OnWindowChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var window)) _window = window;
+        await LoadAsync();
+    }
+
+    private void SetView(bool cumulative)
+    {
+        _cumulative = cumulative;
+        BuildSpec();
+    }
+}

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "blueline",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/Blueline.Web", "--launch-profile", "http"],
+      "port": 5084
+    }
+  ]
+}

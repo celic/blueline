@@ -1,0 +1,274 @@
+:root {
+    --bg: #0b1220;
+    --surface: #111c30;
+    --surface-2: #16243c;
+    --border: rgba(148, 163, 184, 0.16);
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-strong: #0ea5e9;
+    --good: #4ade80;
+    --bad: #f87171;
+    --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+h1 { font-size: 1.6rem; margin: 0 0 .25rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.05rem; margin: 0 0 .75rem; font-weight: 600; }
+
+/* --- shell --- */
+
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0 1.5rem;
+    height: 56px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+.brand {
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+}
+
+.brand:hover { text-decoration: none; }
+
+/* The mark is a nod to the blue line itself. */
+.brand-mark {
+    width: 4px;
+    height: 22px;
+    background: var(--accent);
+    border-radius: 2px;
+}
+
+.nav { display: flex; gap: .35rem; flex: 1; }
+
+.nav a {
+    color: var(--muted);
+    padding: .4rem .7rem;
+    border-radius: 6px;
+    font-size: .92rem;
+}
+
+.nav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+.nav a.active { background: var(--surface-2); color: var(--text); }
+
+.page { max-width: 1180px; margin: 0 auto; padding: 1.75rem 1.5rem 4rem; }
+
+.page-head { margin-bottom: 1.5rem; }
+.page-head p { color: var(--muted); margin: 0; }
+
+/* --- cards --- */
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.15rem 1.25rem;
+}
+
+.card + .card { margin-top: 1.25rem; }
+
+.grid-2 {
+    display: grid;
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* --- controls --- */
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem 1rem;
+    align-items: flex-end;
+    margin-bottom: 1.25rem;
+}
+
+.field { display: flex; flex-direction: column; gap: .3rem; }
+
+.field label {
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+select, input[type="search"], input[type="text"] {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: .45rem .6rem;
+    font-size: .92rem;
+    font-family: inherit;
+    min-width: 150px;
+}
+
+select:focus, input:focus {
+    outline: 2px solid var(--accent-strong);
+    outline-offset: -1px;
+}
+
+.segmented { display: inline-flex; background: var(--surface-2); border-radius: 7px; padding: 2px; border: 1px solid var(--border); }
+
+.segmented button {
+    background: none;
+    border: 0;
+    color: var(--muted);
+    padding: .38rem .8rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: .88rem;
+    font-family: inherit;
+}
+
+.segmented button.on { background: var(--accent-strong); color: #04121f; font-weight: 600; }
+
+button.link {
+    background: none;
+    border: 0;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: .88rem;
+    padding: 0;
+    font-family: inherit;
+}
+
+/* --- chart --- */
+
+.chart-wrap { position: relative; height: 380px; }
+
+/* --- tables --- */
+
+.table-scroll { overflow-x: auto; }
+
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+
+th {
+    text-align: left;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    font-weight: 600;
+    padding: .45rem .6rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+td {
+    padding: .45rem .6rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.07);
+    white-space: nowrap;
+}
+
+tbody tr:hover { background: var(--surface-2); }
+
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.rank { color: var(--muted); width: 2rem; }
+
+.headshot {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    vertical-align: middle;
+    margin-right: .55rem;
+    object-fit: cover;
+}
+
+.pill {
+    display: inline-block;
+    font-size: .72rem;
+    padding: .1rem .42rem;
+    border-radius: 4px;
+    background: var(--surface-2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+
+/* --- stat summary --- */
+
+.stat-row { display: flex; flex-wrap: wrap; gap: 1.75rem; margin-bottom: 1rem; }
+.stat-row .value { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat-row .label { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+
+.muted { color: var(--muted); }
+.good { color: var(--good); }
+.bad { color: var(--bad); }
+
+.empty {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+}
+
+.player-head { display: flex; align-items: center; gap: .9rem; margin-bottom: .25rem; }
+.player-head img { width: 54px; height: 54px; border-radius: 50%; background: var(--surface-2); }
+
+.compare-list { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: .18rem .35rem .18rem .65rem;
+    font-size: .82rem;
+}
+
+.chip button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 .25rem; }
+.chip button:hover { color: var(--bad); }
+.chip .swatch { width: 9px; height: 9px; border-radius: 50%; }
+
+/* --- Blazor's built-in error strip --- */
+
+#blazor-error-ui {
+    color: #7a1c1c;
+    background: #ffdfdf;
+    bottom: 0;
+    display: none;
+    left: 0;
+    padding: .6rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss { cursor: pointer; position: absolute; right: .75rem; top: .5rem; }

@@ -1,0 +1,107 @@
+@page "/players"
+@rendermode InteractiveServer
+@inject StatsQueryService Queries
+
+<PageTitle>Players — Blueline</PageTitle>
+
+<div class="page-head">
+    <h1>Players</h1>
+    <p>Search a skater to open their season trend.</p>
+</div>
+
+<div class="controls">
+    <div class="field">
+        <label for="search">Search</label>
+        <input id="search" type="search" placeholder="Name…" value="@_search" @oninput="OnSearchInput" />
+    </div>
+    <div class="field">
+        <label for="season">Season</label>
+        <select id="season" value="@_seasonId" @onchange="OnSeasonChanged">
+            @foreach (var season in _seasons)
+            {
+                <option value="@season.SeasonId">@season.Label</option>
+            }
+        </select>
+    </div>
+</div>
+
+@if (_players.Count == 0)
+{
+    <div class="empty">No skaters match "@_search".</div>
+}
+else
+{
+    <div class="card">
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>Pos</th>
+                        <th>Team</th>
+                        <th class="num">GP</th>
+                        <th class="num">G</th>
+                        <th class="num">A</th>
+                        <th class="num">P</th>
+                        <th class="num">P/GP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var player in _players)
+                    {
+                        <tr>
+                            <td>
+                                <a href="/players/@player.Id?season=@_seasonId">
+                                    @if (player.HeadshotUrl is not null)
+                                    {
+                                        <img class="headshot" src="@player.HeadshotUrl" alt="" loading="lazy" />
+                                    }
+                                    @player.FullName
+                                </a>
+                            </td>
+                            <td><span class="pill">@player.Position</span></td>
+                            <td>@player.TeamAbbrev</td>
+                            <td class="num muted">@player.GamesPlayed</td>
+                            <td class="num">@player.Goals</td>
+                            <td class="num">@player.Assists</td>
+                            <td class="num"><strong>@player.Points</strong></td>
+                            <td class="num muted">
+                                @((player.GamesPlayed == 0 ? 0 : (double)player.Points / player.GamesPlayed).ToString("F2"))
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<SeasonSummary> _seasons = [];
+    private IReadOnlyList<PlayerSummary> _players = [];
+    private int _seasonId;
+    private string _search = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _seasons = await Queries.GetSeasonsAsync();
+        if (_seasons.Count == 0) return;
+
+        _seasonId = _seasons[0].SeasonId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _players = await Queries.SearchPlayersAsync(_seasonId, _search, 50);
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        await LoadAsync();
+    }
+
+    private async Task OnSeasonChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var seasonId)) _seasonId = seasonId;
+        await LoadAsync();
+    }
+}

@@ -1,0 +1,148 @@
+@page "/data"
+@rendermode InteractiveServer
+@inject StatsQueryService Queries
+@inject NhlIngestionService Ingestion
+@using Blueline.Ingestion
+
+<PageTitle>Data — Blueline</PageTitle>
+
+<div class="page-head">
+    <h1>Data</h1>
+    <p>Where the stats came from and when they were last refreshed.</p>
+</div>
+
+<div class="card">
+    <h2>Stored seasons</h2>
+    @if (_seasons.Count == 0)
+    {
+        <p class="muted">Nothing loaded yet.</p>
+    }
+    else
+    {
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr><th>Season</th><th class="num">Games</th><th>First</th><th>Last</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var season in _seasons)
+                    {
+                        <tr>
+                            <td>@season.Label</td>
+                            <td class="num">@season.GameCount</td>
+                            <td class="muted">@season.FirstGame?.ToString("MMM d, yyyy")</td>
+                            <td class="muted">@season.LastGame?.ToString("MMM d, yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card">
+    <h2>Last ingestion run</h2>
+    @if (_status is null)
+    {
+        <p class="muted">Loading…</p>
+    }
+    else
+    {
+        <div class="stat-row">
+            <div>
+                <div class="value">@_status.GamesInDatabase</div>
+                <div class="label">Games stored</div>
+            </div>
+            <div>
+                <div class="value">@(_status.LastRunKind ?? "—")</div>
+                <div class="label">Kind</div>
+            </div>
+            <div>
+                <div class="value @(_status.LastRunStatus == "Failed" ? "bad" : "good")">
+                    @(_status.LastRunStatus ?? "never run")
+                </div>
+                <div class="label">Status</div>
+            </div>
+            <div>
+                <div class="value">@(_status.LastRunCompletedUtc?.ToString("MMM d, HH:mm") ?? "—")</div>
+                <div class="label">Completed (UTC)</div>
+            </div>
+        </div>
+
+        @if (_status.LastRunError is not null)
+        {
+            <p class="bad">@_status.LastRunError</p>
+        }
+    }
+
+    <p class="muted" style="margin-top:.5rem">
+        New games load automatically once a day. Each run re-reads the last few days so that
+        corrections the league makes after a game are picked up.
+    </p>
+
+    <button class="link" disabled="@_running" @onclick="RunNowAsync">
+        @(_running ? "Refreshing…" : "Refresh now")
+    </button>
+
+    @if (_message is not null)
+    {
+        <p class="muted">@_message</p>
+    }
+</div>
+
+<div class="card">
+    <h2>API</h2>
+    <p class="muted">The same data is available as JSON.</p>
+    <div class="table-scroll">
+        <table>
+            <thead><tr><th>Endpoint</th><th>Returns</th></tr></thead>
+            <tbody>
+                <tr><td><a href="/api/seasons">/api/seasons</a></td><td class="muted">Seasons stored</td></tr>
+                <tr><td><a href="/api/leaders?stat=points">/api/leaders?stat=points</a></td><td class="muted">Season leaders</td></tr>
+                <tr><td><a href="/api/players?search=mcdavid">/api/players?search=…</a></td><td class="muted">Player search</td></tr>
+                <tr><td><code>/api/players/{id}/trend?stat=points&amp;window=10</code></td><td class="muted">A skater's game-by-game trend</td></tr>
+                <tr><td><a href="/api/teams">/api/teams</a></td><td class="muted">Standings</td></tr>
+                <tr><td><code>/api/teams/{id}/trend</code></td><td class="muted">A team's points pace</td></tr>
+                <tr><td><a href="/api/ingestion/status">/api/ingestion/status</a></td><td class="muted">Ingestion health</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<SeasonSummary> _seasons = [];
+    private IngestionStatusDto? _status;
+    private bool _running;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _seasons = await Queries.GetSeasonsAsync();
+        _status = await Queries.GetIngestionStatusAsync();
+    }
+
+    private async Task RunNowAsync()
+    {
+        _running = true;
+        _message = null;
+
+        try
+        {
+            var count = await Ingestion.IngestRecentAsync(DateOnly.FromDateTime(DateTime.UtcNow), 3);
+            _message = count == 0
+                ? "No completed games in the last few days."
+                : $"Refreshed {count} game(s).";
+        }
+        catch (Exception ex)
+        {
+            _message = $"Refresh failed: {ex.Message}";
+        }
+        finally
+        {
+            _running = false;
+            await LoadAsync();
+        }
+    }
+}

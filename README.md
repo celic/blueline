@@ -1,0 +1,133 @@
+# Blueline
+
+A website for reading NHL statistics as **trends over a season** rather than as end-of-year totals.
+Every stat is stored per game, so you can see when a player got hot, when a team's pace slipped,
+and how two players' seasons compare game by game.
+
+Currently loaded: the **2025-26** season — 1,394 games, regular season and playoffs.
+
+## What it does
+
+- **Season leaders** for points, goals, hits, blocks, time on ice and more.
+- **Player trends** — cumulative totals, or per-game values with a rolling average over a window
+  you choose. Up to three other players can be overlaid on the same chart.
+- **Team trends** — how a club banked standings points, scored and conceded across the year.
+- **A JSON API** at `/api` serving the same data.
+- **Daily ingestion** that pulls new games automatically and re-reads recent dates so the
+  league's after-the-fact stat corrections are picked up.
+
+## Running it
+
+```bash
+dotnet run --project src/Blueline.Web
+```
+
+The site is at `http://localhost:5084`. On first run against an empty database it seeds itself
+with the season named by `Ingestion:SeedSeasonId`, which takes a few minutes; after that it only
+fetches new games.
+
+To load data by hand instead:
+
+```bash
+dotnet run --project src/Blueline.Cli -- backfill 20252026
+```
+
+Other CLI commands:
+
+| Command | What it does |
+| --- | --- |
+| `backfill <seasonId>` | Load a full season, e.g. `backfill 20252026` |
+| `daily [days] [date]` | Re-read the N days ending on a date (default 3 days, today) |
+| `status` | Show what is stored and how the last run went |
+
+Tests:
+
+```bash
+dotnet test
+```
+
+## How it fits together
+
+| Project | Role |
+| --- | --- |
+| `Blueline.Core` | Entities, DTOs, and the list of chartable stats |
+| `Blueline.Data` | EF Core context, migrations, and the read-side query service |
+| `Blueline.Ingestion` | League API client, the ingestion pipeline, and the daily background job |
+| `Blueline.Web` | ASP.NET Core host: the REST API and the Blazor Server site |
+| `Blueline.Cli` | Backfill and maintenance commands |
+
+The Blazor pages call the query service directly rather than going through HTTP — same data, one
+less hop. The REST API exists for outside consumers.
+
+### Where the data comes from
+
+The league's public web API at `api-web.nhle.com`. It is undocumented and unauthenticated, so
+ingestion is written defensively: a malformed or missing response is logged and skipped rather
+than failing a whole run, and a JSON parse failure is logged at error level because it means the
+API's shape has moved.
+
+A season is loaded by walking all 32 club schedules to discover game ids, then reading one box
+score per game. The box score is the richest per-game source — goals, assists, shots, hits,
+blocks, giveaways, takeaways and time on ice for every skater, plus goalie lines. Box scores
+abbreviate names to `D. Tarasov`, so a second pass over each club's season roster fills in real
+names and headshots.
+
+Every write is an upsert keyed on the league's own ids, so backfills, daily runs and manual
+re-runs all converge on the same rows.
+
+### How trends are computed
+
+Per-game rows are the only thing stored; cumulative totals and rolling averages are derived at
+read time. For a single player or team that means pulling ~82 rows and folding over them in
+memory, which is cheaper than expressing window functions through the ORM and keeps the maths
+identical across database providers. Season-wide aggregates, which touch tens of thousands of
+rows, stay in SQL.
+
+A rolling average is reported only once a full window of games sits behind it — a partial window
+makes the opening weeks look far more volatile than they were.
+
+## Configuration
+
+`src/Blueline.Web/appsettings.json`:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `Ingestion:DailyJobEnabled` | `true` | Run the background job at all |
+| `Ingestion:DailyRunTimeUtc` | `11:00` | When the daily pass runs (≈07:00 Eastern, after every game is scored) |
+| `Ingestion:LookbackDays` | `3` | How many days back each run re-reads, to catch stat corrections |
+| `Ingestion:RunOnStartup` | `true` | Do a pass at startup instead of waiting |
+| `Ingestion:SeedSeasonId` | `20252026` | Season loaded when the database is empty; `0` disables |
+| `ConnectionStrings:Blueline` | empty | Empty means "resolve a SQLite file automatically" |
+
+### Where the database lives
+
+SQLite, at `%LOCALAPPDATA%\Blueline\blueline.db` by default. Set `BLUELINE_DATA_DIR` to move it —
+point it at a mounted volume when deploying. The web app and the CLI are separate processes, so
+they resolve the path the same explicit way rather than relying on the working directory.
+
+SQLite was chosen for deployment reasons: it needs no second service, so hosting is one container
+plus one small volume. A full season is roughly 50,000 stat rows, which SQLite handles without
+strain. Everything goes through EF Core, so moving to PostgreSQL is a provider swap in
+`AddBluelineCore` plus a regenerated migration.
+
+## API
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /api/seasons` | Seasons stored |
+| `GET /api/stats` | Stats that can be charted |
+| `GET /api/players?season=&search=&take=` | Player search, ordered by points |
+| `GET /api/players/{id}/trend?season=&stat=&window=` | A skater's game-by-game trend |
+| `GET /api/teams?season=` | Standings |
+| `GET /api/teams/{id}/trend?season=&stat=&window=` | A team's pace |
+| `GET /api/leaders?season=&stat=&take=` | Season leaders |
+| `GET /api/ingestion/status` | What is stored and how the last run went |
+| `POST /api/ingestion/run?days=` | Run ingestion now |
+
+`season` defaults to the most recent season stored. An OpenAPI document is served at
+`/openapi/v1.json` in development.
+
+## Notes
+
+Chart.js is vendored at `src/Blueline.Web/wwwroot/lib/chart.umd.js` (v4.4.7, MIT) rather than
+loaded from a CDN, so the site has no third-party runtime dependency and works offline.

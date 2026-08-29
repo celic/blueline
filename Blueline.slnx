@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Blueline.Cli/Blueline.Cli.csproj" />
+    <Project Path="src/Blueline.Core/Blueline.Core.csproj" />
+    <Project Path="src/Blueline.Data/Blueline.Data.csproj" />
+    <Project Path="src/Blueline.Ingestion/Blueline.Ingestion.csproj" />
+    <Project Path="src/Blueline.Web/Blueline.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Blueline.Tests/Blueline.Tests.csproj" />
+  </Folder>
+</Solution>

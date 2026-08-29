@@ -1,0 +1,119 @@
+@page "/"
+@rendermode InteractiveServer
+@inject StatsQueryService Queries
+@inject NavigationManager Nav
+
+<PageTitle>Blueline — Season Leaders</PageTitle>
+
+<div class="page-head">
+    <h1>Season leaders</h1>
+    <p>Pick a player to see how their season actually unfolded, game by game.</p>
+</div>
+
+@if (_seasons.Count == 0)
+{
+    <div class="empty">
+        No games stored yet. Load a season with <code>dotnet run --project src/Blueline.Cli -- backfill 20252026</code>.
+    </div>
+}
+else
+{
+    <div class="controls">
+        <div class="field">
+            <label for="season">Season</label>
+            <select id="season" value="@_seasonId" @onchange="OnSeasonChanged">
+                @foreach (var season in _seasons)
+                {
+                    <option value="@season.SeasonId">@season.Label</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label for="stat">Stat</label>
+            <select id="stat" value="@_stat" @onchange="OnStatChanged">
+                @foreach (var stat in StatDefinition.Skater)
+                {
+                    <option value="@stat.Key">@stat.Label</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="rank">#</th>
+                        <th>Player</th>
+                        <th>Pos</th>
+                        <th>Team</th>
+                        <th class="num">GP</th>
+                        <th class="num">@_statLabel</th>
+                        <th class="num">Per game</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _leaders)
+                    {
+                        <tr>
+                            <td class="rank">@row.Rank</td>
+                            <td>
+                                <a href="/players/@row.PlayerId?season=@_seasonId&stat=@_stat">
+                                    @if (row.HeadshotUrl is not null)
+                                    {
+                                        <img class="headshot" src="@row.HeadshotUrl" alt="" loading="lazy" />
+                                    }
+                                    @row.FullName
+                                </a>
+                            </td>
+                            <td><span class="pill">@row.Position</span></td>
+                            <td>@row.TeamAbbrev</td>
+                            <td class="num muted">@row.GamesPlayed</td>
+                            <td class="num"><strong>@Format(row.Value)</strong></td>
+                            <td class="num muted">@Format(row.GamesPlayed == 0 ? 0 : row.Value / row.GamesPlayed, 2)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<SeasonSummary> _seasons = [];
+    private IReadOnlyList<LeaderRow> _leaders = [];
+    private int _seasonId;
+    private string _stat = "points";
+
+    private string _statLabel => StatDefinition.FindSkater(_stat)?.Unit ?? "Value";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _seasons = await Queries.GetSeasonsAsync();
+        if (_seasons.Count == 0) return;
+
+        _seasonId = _seasons[0].SeasonId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() => _leaders = await Queries.GetLeadersAsync(_seasonId, _stat, 25);
+
+    private async Task OnSeasonChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var seasonId)) _seasonId = seasonId;
+        await LoadAsync();
+    }
+
+    private async Task OnStatChanged(ChangeEventArgs e)
+    {
+        _stat = e.Value?.ToString() ?? "points";
+        await LoadAsync();
+    }
+
+    // Whole numbers for counting stats, decimals only where they carry meaning.
+    private static string Format(double value, int decimals = 1) =>
+        Math.Abs(value % 1) < 0.001 && decimals == 1
+            ? value.ToString("0")
+            : value.ToString($"F{decimals}");
+}

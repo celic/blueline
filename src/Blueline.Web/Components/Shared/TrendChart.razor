@@ -1,0 +1,38 @@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+
+<div class="chart-wrap">
+    <canvas id="@_canvasId"></canvas>
+</div>
+
+@code {
+    /// <summary>Null renders an empty canvas rather than throwing; callers show their own empty state.</summary>
+    [Parameter] public ChartSpec? Spec { get; set; }
+
+    private readonly string _canvasId = $"chart-{Guid.NewGuid():N}";
+    private IJSObjectReference? _module;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Spec is null) return;
+
+        // Chart.js needs a real canvas, so everything here waits for the browser.
+        _module ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/trend-chart.js");
+        await _module.InvokeVoidAsync("render", _canvasId, Spec);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null) return;
+
+        try
+        {
+            await _module.InvokeVoidAsync("destroy", _canvasId);
+            await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is already gone; the browser has discarded the canvas with it.
+        }
+    }
+}
