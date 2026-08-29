@@ -12,14 +12,12 @@ Working end to end and verified against the live league API. Not yet deployed an
 stat lines, 5,575 goalie lines, 1,063 players, 32 teams. About 5 MB of SQLite.
 
 **Built and checked in a browser:** season leaders, player trends (cumulative and per-game with a
-rolling average), multi-player comparison, team pace, the ingestion status page, and all nine API
-endpoints. 39 NUnit tests pass; the solution builds with no warnings.
+rolling average), multi-player comparison, goalie leaders and goalie trends, team pace, the
+ingestion status page, and all eleven API endpoints. 44 NUnit tests pass; the solution builds
+with no warnings.
 
 **Known gaps**, in rough order of how much they'd be missed:
 
-- **Goalie stats are stored but never shown.** 5,575 goalie game lines are ingested and sitting in
-  the database, but there is no goalie stat list, page or API route — `StatDefinition` covers
-  skaters and teams only. This is the largest piece of finished data with no way to see it.
 - **Playoff games are stored but not viewable.** All 82 are ingested, but every leader and trend
   query filters to the regular season, so nothing surfaces them. Note the resulting mismatch: the
   Data page reports 1,394 games while the leaderboards cover only the 1,312 regular-season ones.
@@ -36,6 +34,9 @@ endpoints. 39 NUnit tests pass; the solution builds with no warnings.
 - **Season leaders** for points, goals, hits, blocks, time on ice and more.
 - **Player trends** — cumulative totals, or per-game values with a rolling average over a window
   you choose. Up to three other players can be overlaid on the same chart.
+- **Goalie trends** — save percentage, goals-against average, saves, shots and goals against.
+  Rates are combined by weighting each appearance by the shots faced, never by averaging the
+  per-game percentages.
 - **Team trends** — how a club banked standings points, scored and conceded across the year.
 - **A JSON API** at `/api` serving the same data.
 - **Daily ingestion** that pulls new games automatically and re-reads recent dates so the
@@ -111,6 +112,12 @@ rows, stay in SQL.
 A rolling average is reported only once a full window of games sits behind it — a partial window
 makes the opening weeks look far more volatile than they were.
 
+Rate stats — save percentage and goals-against average — accumulate differently from counting
+stats. Both the running and the rolling figures sum numerators and denominators separately and
+divide at the end, so a 45-shot night counts for more than a 10-shot night. Averaging the
+per-game percentages instead would have put Vasilevskiy's 2025-26 save percentage at .907 rather
+than its true .912, which is roughly the gap between an average starter and a top-five goalie.
+
 ## Configuration
 
 `src/Blueline.Web/appsettings.json`:
@@ -143,6 +150,8 @@ strain. Everything goes through EF Core, so moving to PostgreSQL is a provider s
 | `GET /api/stats` | Stats that can be charted |
 | `GET /api/players?season=&search=&take=` | Player search, ordered by points |
 | `GET /api/players/{id}/trend?season=&stat=&window=` | A skater's game-by-game trend |
+| `GET /api/goalies?season=&search=&stat=&take=` | Goalie leaders, with a minutes qualification on rates |
+| `GET /api/goalies/{id}/trend?season=&stat=&window=` | A goalie's game-by-game trend |
 | `GET /api/teams?season=` | Standings |
 | `GET /api/teams/{id}/trend?season=&stat=&window=` | A team's pace |
 | `GET /api/leaders?season=&stat=&take=` | Season leaders |

@@ -19,10 +19,20 @@ public record TrendSeries(
     string StatLabel,
     int SeasonId,
     int RollingWindow,
-    IReadOnlyList<TrendPoint> Points)
+    IReadOnlyList<TrendPoint> Points,
+    bool IsRate = false)
 {
+    /// <summary>
+    /// For a counting stat this is the season total. For a rate it is the season rate — the
+    /// final cumulative figure, already weighted by every game's denominator.
+    /// </summary>
     public double Total => Points.Count == 0 ? 0 : Points[^1].Cumulative;
-    public double PerGame => Points.Count == 0 ? 0 : Total / Points.Count;
+
+    /// <summary>
+    /// Dividing a rate by games played would be meaningless, so a rate reports itself here: it
+    /// is already normalised.
+    /// </summary>
+    public double PerGame => Points.Count == 0 ? 0 : IsRate ? Total : Total / Points.Count;
 }
 
 public record PlayerSummary(
@@ -35,6 +45,28 @@ public record PlayerSummary(
     int Goals,
     int Assists,
     int Points);
+
+public record GoalieSummary(
+    int Id,
+    string FullName,
+    string? HeadshotUrl,
+    string? TeamAbbrev,
+    int GamesPlayed,
+    int Starts,
+    int MinutesPlayed,
+    int Saves,
+    int ShotsAgainst,
+    int GoalsAgainst)
+{
+    /// <summary>Null rather than zero when no shots were faced, so it never reads as .000.</summary>
+    public double? SavePctg => ShotsAgainst > 0 ? (double)Saves / ShotsAgainst : null;
+
+    /// <summary>Goals against per 60 minutes played.</summary>
+    public double? GoalsAgainstAverage => MinutesPlayed > 0 ? GoalsAgainst * 60d / MinutesPlayed : null;
+
+    /// <summary>Whether the goalie has played enough to appear on a rate leaderboard.</summary>
+    public bool QualifiesForRateTitle => MinutesPlayed >= StatDefinition.RateQualificationMinutes;
+}
 
 public record TeamSummary(
     int Id,

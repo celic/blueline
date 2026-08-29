@@ -1,0 +1,151 @@
+@page "/goalies"
+@rendermode InteractiveServer
+@inject StatsQueryService Queries
+
+<PageTitle>Goalies — Blueline</PageTitle>
+
+<div class="page-head">
+    <h1>Goalies</h1>
+    <p>Pick a goalie to see how their season held up, start by start.</p>
+</div>
+
+@if (_seasons.Count == 0)
+{
+    <div class="empty">No games stored yet.</div>
+}
+else
+{
+    <div class="controls">
+        <div class="field">
+            <label for="search">Search</label>
+            <input id="search" type="search" placeholder="Name…" value="@_search" @oninput="OnSearchInput" />
+        </div>
+        <div class="field">
+            <label for="season">Season</label>
+            <select id="season" value="@_seasonId" @onchange="OnSeasonChanged">
+                @foreach (var season in _seasons)
+                {
+                    <option value="@season.SeasonId">@season.Label</option>
+                }
+            </select>
+        </div>
+        <div class="field">
+            <label for="stat">Rank by</label>
+            <select id="stat" value="@_stat" @onchange="OnStatChanged">
+                @foreach (var stat in StatDefinition.Goalie)
+                {
+                    <option value="@stat.Key">@stat.Label</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (_isRateStat)
+    {
+        <p class="muted" style="margin-top:-.75rem">
+            Ranked among goalies with at least @StatDefinition.RateQualificationMinutes minutes played —
+            without a floor, a single relief appearance would top the table.
+        </p>
+    }
+
+    @if (_goalies.Count == 0)
+    {
+        <div class="empty">No goalies match "@_search".</div>
+    }
+    else
+    {
+        <div class="card">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="rank">#</th>
+                            <th>Goalie</th>
+                            <th>Team</th>
+                            <th class="num">GP</th>
+                            <th class="num">GS</th>
+                            <th class="num">MIN</th>
+                            <th class="num">SA</th>
+                            <th class="num">SV</th>
+                            <th class="num">GA</th>
+                            <th class="num">SV%</th>
+                            <th class="num">GAA</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (goalie, index) in _goalies.Select((g, i) => (g, i)))
+                        {
+                            <tr>
+                                <td class="rank">@(index + 1)</td>
+                                <td>
+                                    <a href="/goalies/@goalie.Id?season=@_seasonId&stat=@_stat">
+                                        @if (goalie.HeadshotUrl is not null)
+                                        {
+                                            <img class="headshot" src="@goalie.HeadshotUrl" alt="" loading="lazy" />
+                                        }
+                                        @goalie.FullName
+                                    </a>
+                                </td>
+                                <td>@goalie.TeamAbbrev</td>
+                                <td class="num muted">@goalie.GamesPlayed</td>
+                                <td class="num muted">@goalie.Starts</td>
+                                <td class="num muted">@goalie.MinutesPlayed</td>
+                                <td class="num">@goalie.ShotsAgainst</td>
+                                <td class="num">@goalie.Saves</td>
+                                <td class="num">@goalie.GoalsAgainst</td>
+                                <td class="num"><strong>@FormatSavePctg(goalie.SavePctg)</strong></td>
+                                <td class="num">@FormatGaa(goalie.GoalsAgainstAverage)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private IReadOnlyList<SeasonSummary> _seasons = [];
+    private IReadOnlyList<GoalieSummary> _goalies = [];
+    private int _seasonId;
+    private string _search = "";
+    private string _stat = "savePctg";
+
+    private bool _isRateStat => StatDefinition.FindGoalie(_stat)?.IsRate ?? false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _seasons = await Queries.GetSeasonsAsync();
+        if (_seasons.Count == 0) return;
+
+        _seasonId = _seasons[0].SeasonId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync() =>
+        _goalies = await Queries.SearchGoaliesAsync(_seasonId, _search, _stat, 50);
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        await LoadAsync();
+    }
+
+    private async Task OnSeasonChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var seasonId)) _seasonId = seasonId;
+        await LoadAsync();
+    }
+
+    private async Task OnStatChanged(ChangeEventArgs e)
+    {
+        _stat = e.Value?.ToString() ?? "savePctg";
+        await LoadAsync();
+    }
+
+    /// <summary>Save percentage is written without its leading zero, as ".912".</summary>
+    internal static string FormatSavePctg(double? value) =>
+        value is null ? "—" : value.Value.ToString("F3").TrimStart('0');
+
+    internal static string FormatGaa(double? value) => value is null ? "—" : value.Value.ToString("F2");
+}

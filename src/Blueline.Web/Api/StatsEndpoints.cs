@@ -22,9 +22,10 @@ public static class StatsEndpoints
         api.MapGet("/stats", () => new
             {
                 skater = StatDefinition.Skater,
+                goalie = StatDefinition.Goalie,
                 team = StatDefinition.Team,
             })
-            .WithSummary("Stats that can be charted, for skaters and for teams.");
+            .WithSummary("Stats that can be charted, for skaters, goalies and teams.");
 
         api.MapGet("/players", async (
                 StatsQueryService queries,
@@ -57,6 +58,39 @@ public static class StatsEndpoints
                     : Results.Ok(series);
             })
             .WithSummary("A skater's game-by-game values, cumulative total and rolling average.");
+
+        api.MapGet("/goalies", async (
+                StatsQueryService queries,
+                CancellationToken ct,
+                int? season = null,
+                string? search = null,
+                string stat = "savePctg",
+                int take = 25) =>
+            {
+                var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
+                if (seasonId is null) return Results.Ok(Array.Empty<GoalieSummary>());
+
+                return Results.Ok(await queries.SearchGoaliesAsync(seasonId.Value, search, stat, Clamp(take, 100), ct));
+            })
+            .WithSummary("Goalies in a season, ranked by a stat. Rate stats apply a minutes qualification.");
+
+        api.MapGet("/goalies/{playerId:int}/trend", async (
+                int playerId,
+                StatsQueryService queries,
+                CancellationToken ct,
+                int? season = null,
+                string stat = "savePctg",
+                int window = 10) =>
+            {
+                var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
+                if (seasonId is null) return Results.NotFound();
+
+                var series = await queries.GetGoalieTrendAsync(playerId, seasonId.Value, stat, Clamp(window, 41), ct);
+                return series is null
+                    ? Results.NotFound(new { message = $"No goalie {playerId}, or '{stat}' is not a chartable goalie stat." })
+                    : Results.Ok(series);
+            })
+            .WithSummary("A goalie's game-by-game trend. Rates are weighted by shots faced, not averaged.");
 
         api.MapGet("/teams", async (StatsQueryService queries, CancellationToken ct, int? season = null) =>
             {

@@ -1,25 +1,24 @@
-@page "/players/{PlayerId:int}"
+@page "/goalies/{PlayerId:int}"
 @rendermode InteractiveServer
 @inject StatsQueryService Queries
-@inject NavigationManager Nav
 
-<PageTitle>@(_primary?.SubjectName ?? "Player") — Blueline</PageTitle>
+<PageTitle>@(_primary?.SubjectName ?? "Goalie") — Blueline</PageTitle>
 
-@if (_primary is null)
+@if (_primary is null || _primary.Points.Count == 0)
 {
-    <div class="empty">No stored games for this player in @StatsQueryService.FormatSeason(_seasonId).</div>
+    <div class="empty">No stored appearances for this goalie in @StatsQueryService.FormatSeason(_seasonId).</div>
 }
 else
 {
     <div class="page-head">
         <div class="player-head">
-            @if (_headshotUrl is not null)
+            @if (_summary?.HeadshotUrl is not null)
             {
-                <img src="@_headshotUrl" alt="" />
+                <img src="@_summary.HeadshotUrl" alt="" />
             }
             <div>
                 <h1>@_primary.SubjectName</h1>
-                <p>@_primary.StatLabel through @_primary.Points.Count games of @StatsQueryService.FormatSeason(_seasonId)</p>
+                <p>@_primary.StatLabel across @_primary.Points.Count appearances of @StatsQueryService.FormatSeason(_seasonId)</p>
             </div>
         </div>
     </div>
@@ -28,7 +27,7 @@ else
         <div class="field">
             <label for="stat">Stat</label>
             <select id="stat" value="@_stat" @onchange="OnStatChanged">
-                @foreach (var stat in StatDefinition.Skater)
+                @foreach (var stat in StatDefinition.Goalie)
                 {
                     <option value="@stat.Key">@stat.Label</option>
                 }
@@ -48,14 +47,12 @@ else
         <div class="field">
             <label>View</label>
             <div class="segmented">
-                <button class="@(_view == ViewMode.Cumulative ? "on" : "")"
-                        @onclick="() => SetView(ViewMode.Cumulative)">Cumulative</button>
-                <button class="@(_view == ViewMode.PerGame ? "on" : "")"
-                        @onclick="() => SetView(ViewMode.PerGame)">Per game</button>
+                <button class="@(_cumulative ? "on" : "")" @onclick="() => SetView(true)">@_cumulativeLabel</button>
+                <button class="@(!_cumulative ? "on" : "")" @onclick="() => SetView(false)">Per game</button>
             </div>
         </div>
 
-        @if (_view == ViewMode.PerGame)
+        @if (!_cumulative)
         {
             <div class="field">
                 <label for="window">Rolling window</label>
@@ -70,13 +67,11 @@ else
 
         <div class="field">
             <label for="compare">Compare with</label>
-            @* Keyed so the element is rebuilt after each pick; otherwise the browser keeps the
-               old selection visible even though the chosen player has moved into a chip. *@
             <select id="compare" value="" @key="_compareKey" @onchange="OnCompareSelected">
-                <option value="">Add a player…</option>
+                <option value="">Add a goalie…</option>
                 @foreach (var candidate in _candidates.Where(c => c.Id != PlayerId && _comparisons.All(x => x.SubjectId != c.Id)))
                 {
-                    <option value="@candidate.Id">@candidate.FullName (@candidate.Points P)</option>
+                    <option value="@candidate.Id">@candidate.FullName (@Goalies.FormatSavePctg(candidate.SavePctg))</option>
                 }
             </select>
         </div>
@@ -100,23 +95,23 @@ else
         <div class="card">
             <div class="stat-row">
                 <div>
-                    <div class="value">@Format(_primary.Total)</div>
-                    <div class="label">Total @_primary.StatLabel</div>
+                    <div class="value">@FormatValue(_primary.Total)</div>
+                    <div class="label">Season @_primary.StatLabel.ToLowerInvariant()</div>
                 </div>
                 <div>
-                    <div class="value">@Format(_primary.PerGame, 2)</div>
-                    <div class="label">Per game</div>
+                    <div class="value">@(_summary?.Starts ?? 0)</div>
+                    <div class="label">Starts</div>
                 </div>
                 <div>
-                    <div class="value">@Format(BestStretch())</div>
-                    <div class="label">Best @_window-game stretch</div>
+                    <div class="value">@(_summary?.MinutesPlayed ?? 0)</div>
+                    <div class="label">Minutes</div>
                 </div>
             </div>
             <TrendChart Spec="_spec" @key="_chartKey" />
         </div>
 
         <div class="card">
-            <h2>Game log</h2>
+            <h2>Appearance log</h2>
             <div class="table-scroll" style="max-height:420px; overflow-y:auto">
                 <table>
                     <thead>
@@ -124,8 +119,8 @@ else
                             <th class="rank">#</th>
                             <th>Date</th>
                             <th>Opp</th>
-                            <th class="num">@(StatDefinition.FindSkater(_stat)?.Unit)</th>
-                            <th class="num">Tot</th>
+                            <th class="num">@(StatDefinition.FindGoalie(_stat)?.Unit)</th>
+                            <th class="num">@(_isRate ? "Season" : "Tot")</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -135,8 +130,8 @@ else
                                 <td class="rank">@point.GameNumber</td>
                                 <td class="muted">@point.Date.ToString("MMM d")</td>
                                 <td>@(point.IsHome ? "vs" : "@") @point.Opponent</td>
-                                <td class="num">@Format(point.Value, 1)</td>
-                                <td class="num muted">@Format(point.Cumulative)</td>
+                                <td class="num">@FormatValue(point.Value)</td>
+                                <td class="num muted">@FormatValue(point.Cumulative)</td>
                             </tr>
                         }
                     </tbody>
@@ -152,26 +147,25 @@ else
     [SupplyParameterFromQuery(Name = "season")] public int? SeasonQuery { get; set; }
     [SupplyParameterFromQuery(Name = "stat")] public string? StatQuery { get; set; }
 
-    private enum ViewMode { Cumulative, PerGame }
-
     private IReadOnlyList<SeasonSummary> _seasons = [];
-    private IReadOnlyList<PlayerSummary> _candidates = [];
+    private IReadOnlyList<GoalieSummary> _candidates = [];
     private readonly List<TrendSeries> _comparisons = [];
 
     private TrendSeries? _primary;
+    private GoalieSummary? _summary;
     private ChartSpec? _spec;
-    private string? _headshotUrl;
 
     private int _seasonId;
-    private string _stat = "points";
+    private string _stat = "savePctg";
     private int _window = 10;
-    private ViewMode _view = ViewMode.Cumulative;
-
-    // Forces the chart component to rebuild rather than patch a stale canvas.
+    private bool _cumulative = true;
     private string _chartKey = "";
-
-    // Bumped whenever the comparison list changes, to reset the "Compare with" dropdown.
     private int _compareKey;
+
+    private bool _isRate => StatDefinition.FindGoalie(_stat)?.IsRate ?? false;
+
+    // A running save percentage is not a total, so calling the view "cumulative" would mislead.
+    private string _cumulativeLabel => _isRate ? "Season to date" : "Cumulative";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -179,35 +173,35 @@ else
         if (_seasons.Count == 0) return;
 
         _seasonId = SeasonQuery ?? _seasons[0].SeasonId;
-
-        // Goalies record none of the skater stats this page charts, so send them to the page
-        // built for them rather than rendering an empty season.
-        var player = await Queries.GetPlayerAsync(PlayerId);
-        if (player?.IsGoalie == true)
-        {
-            Nav.NavigateTo($"/goalies/{PlayerId}?season={_seasonId}", replace: true);
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(StatQuery) && StatDefinition.FindSkater(StatQuery) is not null)
+        if (!string.IsNullOrWhiteSpace(StatQuery) && StatDefinition.FindGoalie(StatQuery) is not null)
             _stat = StatQuery;
 
-        _candidates = await Queries.SearchPlayersAsync(_seasonId, null, 40);
-        _headshotUrl = _candidates.FirstOrDefault(c => c.Id == PlayerId)?.HeadshotUrl;
-
+        await LoadCandidatesAsync();
         await LoadAsync();
+    }
+
+    private async Task LoadCandidatesAsync()
+    {
+        _candidates = await Queries.SearchGoaliesAsync(_seasonId, null, "toi", 40);
+        _summary = _candidates.FirstOrDefault(c => c.Id == PlayerId);
+
+        // A goalie outside the top 40 by minutes still needs their own summary tiles.
+        if (_summary is null)
+        {
+            var all = await Queries.SearchGoaliesAsync(_seasonId, null, "toi", 200);
+            _summary = all.FirstOrDefault(c => c.Id == PlayerId);
+        }
     }
 
     private async Task LoadAsync()
     {
-        _primary = await Queries.GetPlayerTrendAsync(PlayerId, _seasonId, _stat, _window);
+        _primary = await Queries.GetGoalieTrendAsync(PlayerId, _seasonId, _stat, _window);
 
-        // Comparisons are held by id, so re-fetch them whenever the stat or season moves.
         var comparisonIds = _comparisons.Select(c => c.SubjectId).ToList();
         _comparisons.Clear();
         foreach (var id in comparisonIds)
         {
-            var series = await Queries.GetPlayerTrendAsync(id, _seasonId, _stat, _window);
+            var series = await Queries.GetGoalieTrendAsync(id, _seasonId, _stat, _window);
             if (series is not null) _comparisons.Add(series);
         }
 
@@ -225,10 +219,8 @@ else
         var all = new List<TrendSeries> { _primary };
         all.AddRange(_comparisons);
 
-        // The longest season sets the x axis so every compared player stays aligned by game number.
         var length = all.Max(s => s.Points.Count);
         var labels = Enumerable.Range(1, length).Select(i => i.ToString()).ToList();
-
         var datasets = new List<ChartDataset>();
 
         for (var i = 0; i < all.Count; i++)
@@ -236,18 +228,17 @@ else
             var series = all[i];
             var color = ChartPalette.For(i);
 
-            if (_view == ViewMode.Cumulative)
+            if (_cumulative)
             {
                 datasets.Add(new ChartDataset(
                     series.SubjectName,
                     Pad(series.Points.Select(p => (double?)p.Cumulative), length),
                     color,
-                    Fill: all.Count == 1));
+                    // Filling under a rate line implies area, which means nothing here.
+                    Fill: all.Count == 1 && !_isRate));
             }
             else
             {
-                // Raw per-game values are spiky, so the rolling average carries the trend and the
-                // bars stay only for the single-player view where they are still readable.
                 if (all.Count == 1)
                 {
                     datasets.Add(new ChartDataset(
@@ -268,18 +259,17 @@ else
         _spec = new ChartSpec(
             labels,
             datasets,
-            XLabel: "Game number",
-            YLabel: _view == ViewMode.Cumulative
-                ? $"Cumulative {_primary.StatLabel.ToLowerInvariant()}"
-                : $"{_primary.StatLabel} per game",
-            BeginAtZero: _stat != "plusMinus",
-            Precise: _view == ViewMode.PerGame,
+            XLabel: "Appearance",
+            YLabel: _cumulative && !_isRate ? $"Cumulative {_primary.StatLabel.ToLowerInvariant()}" : _primary.StatLabel,
+            // Save percentage lives between about .850 and 1.000; anchoring at zero would flatten
+            // every line into an indistinguishable band at the top of the chart.
+            BeginAtZero: !_isRate,
+            Precise: _isRate || !_cumulative,
             Subtitles: subtitles);
 
-        _chartKey = $"{PlayerId}-{_seasonId}-{_stat}-{_window}-{_view}-{_comparisons.Count}";
+        _chartKey = $"{PlayerId}-{_seasonId}-{_stat}-{_window}-{_cumulative}-{_comparisons.Count}";
     }
 
-    /// <summary>Pads a shorter season with nulls so Chart.js keeps every series on one x axis.</summary>
     private static List<double?> Pad(IEnumerable<double?> values, int length)
     {
         var list = values.ToList();
@@ -287,26 +277,25 @@ else
         return list;
     }
 
-    /// <summary>The player's hottest stretch — the headline number a trend view should answer.</summary>
-    private double BestStretch()
-    {
-        if (_primary is null || _primary.Points.Count == 0) return 0;
-
-        var best = _primary.Points.Where(p => p.RollingAverage is not null).Select(p => p.RollingAverage!.Value);
-        var window = best.Any() ? best.Max() * _window : _primary.Total;
-        return Math.Round(window, 1);
-    }
+    private string FormatValue(double value) =>
+        _stat switch
+        {
+            "savePctg" => Goalies.FormatSavePctg(value),
+            "gaa" => Goalies.FormatGaa(value),
+            "toi" => value.ToString("F1"),
+            _ => value.ToString("0.##"),
+        };
 
     private async Task OnStatChanged(ChangeEventArgs e)
     {
-        _stat = e.Value?.ToString() ?? "points";
+        _stat = e.Value?.ToString() ?? "savePctg";
         await LoadAsync();
     }
 
     private async Task OnSeasonChanged(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out var seasonId)) _seasonId = seasonId;
-        _candidates = await Queries.SearchPlayersAsync(_seasonId, null, 40);
+        await LoadCandidatesAsync();
         await LoadAsync();
     }
 
@@ -316,9 +305,9 @@ else
         await LoadAsync();
     }
 
-    private void SetView(ViewMode mode)
+    private void SetView(bool cumulative)
     {
-        _view = mode;
+        _cumulative = cumulative;
         BuildSpec();
     }
 
@@ -327,7 +316,7 @@ else
         if (!int.TryParse(e.Value?.ToString(), out var id)) return;
         if (_comparisons.Count >= 3) return;
 
-        var series = await Queries.GetPlayerTrendAsync(id, _seasonId, _stat, _window);
+        var series = await Queries.GetGoalieTrendAsync(id, _seasonId, _stat, _window);
         if (series is not null && series.Points.Count > 0)
         {
             _comparisons.Add(series);
@@ -342,7 +331,4 @@ else
         _compareKey++;
         BuildSpec();
     }
-
-    private static string Format(double value, int decimals = 1) =>
-        Math.Abs(value % 1) < 0.001 && decimals == 1 ? value.ToString("0") : value.ToString($"F{decimals}");
 }

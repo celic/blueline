@@ -12,20 +12,31 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 These need no new ingestion. The rows are in the database and the query layer can already reach
 them; what is missing is a way to ask for them.
 
-### 1.1 Surface goalie stats — `todo`
+### 1.1 Surface goalie stats — `done`
 
-5,575 goalie game lines are stored and never read. `GoalieGameStat` appears nowhere in
-`Blueline.Data/Queries` or `Blueline.Web`.
+Delivered. `/goalies` lists goalie leaders and `/goalies/{id}` charts a goalie's season, with
+comparison against up to three others. `/api/goalies` and `/api/goalies/{id}/trend` expose the
+same data. `/players/{id}` redirects to the goalie page when the player is a goalie.
 
-- Add a `StatDefinition.Goalie` array in `src/Blueline.Core/Dtos/StatDefinition.cs`:
-  save percentage, saves, goals against, shots against, and a goals-against average.
-- Add `GetGoalieTrendAsync` and goalie leaders to `StatsQueryService`. Save percentage is an
-  average, not a sum, so it cannot reuse the cumulative fold as-is — a cumulative
-  saves-over-shots ratio is the meaningful "trend" line, not a running total.
-- `GoalieGameStat.SavePctg` already returns null when a goalie faced no shots. Keep that
-  distinction; a backup who never faced a shot must not read as 0.000.
-- Route the player page to a goalie view when `Player.Position == "G"`, or add `/goalies`.
-- Add `/api/goalies/{id}/trend` and extend `/api/leaders` to accept goalie stats.
+Two things worth knowing about how it was built:
+
+- **Rates do not reuse the counting fold.** `BuildPoints` now takes an optional
+  `RateDenominator` on each row and, when present, sums numerators and denominators separately
+  for both the running and the rolling figures. Averaging per-game percentages instead would
+  have reported Vasilevskiy's season at .907 rather than .912 — about the gap between an average
+  starter and a top-five goalie. Covered by tests in `TrendCalculationTests`.
+- **A bug was found and fixed while verifying.** Goalie games played was counting games
+  *dressed* rather than *played*, because a backup logs a zero-minute row for every game on the
+  bench. Starters were being reported at 78-80 games instead of their actual 57-64.
+  `SearchGoaliesAsync` now counts only appearances with ice time, matching the trend query.
+
+Rate leaderboards apply a 1,500-minute qualification (`StatDefinition.RateQualificationMinutes`),
+dropped automatically if nobody clears it so a part-loaded season does not show an empty table.
+
+Not done, and deliberately: goalie **wins/losses** are not shown. A goalie's decision is not in
+the box score `playerByGameStats` payload, so it would have to be inferred by joining the
+appearance to the game result and working out who was in net at the end — guessable, but not
+reliably, for relief appearances. Worth doing properly if you want a wins column.
 
 ### 1.2 Make playoff games viewable — `todo`
 
