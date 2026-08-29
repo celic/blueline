@@ -4,7 +4,32 @@ A website for reading NHL statistics as **trends over a season** rather than as 
 Every stat is stored per game, so you can see when a player got hot, when a team's pace slipped,
 and how two players' seasons compare game by game.
 
-Currently loaded: the **2025-26** season — 1,394 games, regular season and playoffs.
+## Status
+
+Working end to end and verified against the live league API. Not yet deployed anywhere.
+
+**Loaded:** the 2025-26 season — 1,394 games (1,312 regular season, 82 playoff), 50,183 skater
+stat lines, 5,575 goalie lines, 1,063 players, 32 teams. About 5 MB of SQLite.
+
+**Built and checked in a browser:** season leaders, player trends (cumulative and per-game with a
+rolling average), multi-player comparison, team pace, the ingestion status page, and all nine API
+endpoints. 39 NUnit tests pass; the solution builds with no warnings.
+
+**Known gaps**, in rough order of how much they'd be missed:
+
+- **Goalie stats are stored but never shown.** 5,575 goalie game lines are ingested and sitting in
+  the database, but there is no goalie stat list, page or API route — `StatDefinition` covers
+  skaters and teams only. This is the largest piece of finished data with no way to see it.
+- **Playoff games are stored but not viewable.** All 82 are ingested, but every leader and trend
+  query filters to the regular season, so nothing surfaces them. Note the resulting mismatch: the
+  Data page reports 1,394 games while the leaderboards cover only the 1,312 regular-season ones.
+- **30 of 1,063 players still show an abbreviated name** such as `D. Tarasov`. Name enrichment
+  reads each club's end-of-season roster, which misses players who appeared briefly and were gone
+  by season's end. Their stats are correct; only the display name is short.
+- **Only one season is loaded.** The schema and UI are multi-season already — a season picker is
+  on every page — so this is just a matter of running `backfill` for another year.
+- **The daily job has not been observed firing on a real game day.** It was exercised against past
+  dates and runs on startup, but 2026-27 does not open until 2026-09-29.
 
 ## What it does
 
