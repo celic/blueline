@@ -1,0 +1,27 @@
+@* Chooses which games a page counts. Shared so every page words the choice identically. *@
+
+<div class="field">
+    <label for="@_id">Games</label>
+    <select id="@_id" value="@Scope" @onchange="OnChanged">
+        @foreach (var scope in Enum.GetValues<GameScope>())
+        {
+            <option value="@scope">@scope.Label()</option>
+        }
+    </select>
+</div>
+
+@code {
+    [Parameter] public GameScope Scope { get; set; }
+    [Parameter] public EventCallback<GameScope> ScopeChanged { get; set; }
+
+    private readonly string _id = $"scope-{Guid.NewGuid():N}";
+
+    private async Task OnChanged(ChangeEventArgs e)
+    {
+        var scope = GameScopes.Parse(e.Value?.ToString());
+        if (scope == Scope) return;
+
+        Scope = scope;
+        await ScopeChanged.InvokeAsync(scope);
+    }
+}

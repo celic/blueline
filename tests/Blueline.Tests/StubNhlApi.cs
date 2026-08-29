@@ -46,11 +46,12 @@ public class StubNhlApi : HttpMessageHandler
         int homeScore,
         int awayScore,
         string lastPeriodType = "REG",
-        int homeSkaterGoals = 1) => $$"""
+        int homeSkaterGoals = 1,
+        int gameType = 2) => $$"""
         {
           "id": {{gameId}},
           "season": 20252026,
-          "gameType": 2,
+          "gameType": {{gameType}},
           "gameDate": "{{gameDate}}",
           "gameState": "OFF",
           "awayTeam": { "id": {{awayTeamId}}, "commonName": { "default": "Away Club" },
@@ -85,10 +86,16 @@ public class StubNhlApi : HttpMessageHandler
         """;
 
     /// <summary>The shape of /v1/score/{date}, where abbrev is a bare string rather than an object.</summary>
-    public static string Score(string date, params long[] gameIds)
+    public static string Score(string date, params long[] gameIds) => ScoreOfType(date, 2, gameIds);
+
+    /// <summary>
+    /// Deliberately not an overload of <see cref="Score"/>: game ids fit in an int, so
+    /// <c>Score(date, 2025020001)</c> would silently bind the id as the game type.
+    /// </summary>
+    public static string ScoreOfType(string date, int gameType, params long[] gameIds)
     {
         var games = string.Join(",", gameIds.Select(id => $$"""
-            { "id": {{id}}, "season": 20252026, "gameType": 2, "gameDate": "{{date}}", "gameState": "OFF",
+            { "id": {{id}}, "season": 20252026, "gameType": {{gameType}}, "gameDate": "{{date}}", "gameState": "OFF",
               "awayTeam": { "id": 22, "abbrev": "AWY" }, "homeTeam": { "id": 21, "abbrev": "HME" } }
             """));
 

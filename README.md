@@ -18,9 +18,6 @@ with no warnings.
 
 **Known gaps**, in rough order of how much they'd be missed:
 
-- **Playoff games are stored but not viewable.** All 82 are ingested, but every leader and trend
-  query filters to the regular season, so nothing surfaces them. Note the resulting mismatch: the
-  Data page reports 1,394 games while the leaderboards cover only the 1,312 regular-season ones.
 - **30 of 1,063 players still show an abbreviated name** such as `D. Tarasov`. Name enrichment
   reads each club's end-of-season roster, which misses players who appeared briefly and were gone
   by season's end. Their stats are correct; only the display name is short.
@@ -38,6 +35,8 @@ with no warnings.
   Rates are combined by weighting each appearance by the shots faced, never by averaging the
   per-game percentages.
 - **Team trends** — how a club banked standings points, scored and conceded across the year.
+- **A games filter** on every page — regular season, playoffs, or both combined. The default is
+  configurable via `Display:DefaultGameScope`, and the API takes the same choice as `?scope=`.
 - **A JSON API** at `/api` serving the same data.
 - **Daily ingestion** that pulls new games automatically and re-reads recent dates so the
   league's after-the-fact stat corrections are picked up.
@@ -112,6 +111,11 @@ rows, stay in SQL.
 A rolling average is reported only once a full window of games sits behind it — a partial window
 makes the opening weeks look far more volatile than they were.
 
+Standings points are a regular-season construct. Playoff games award none — not for a win, and
+not for an overtime loss, since the playoffs have no loser point. A combined view therefore shows
+a club's real standings total rather than an inflated one, and the pages hide the points columns
+whenever the chosen scope includes playoff games.
+
 Rate stats — save percentage and goals-against average — accumulate differently from counting
 stats. Both the running and the rolling figures sum numerators and denominators separately and
 divide at the end, so a 45-shot night counts for more than a 10-shot night. Averaging the
@@ -129,6 +133,7 @@ than its true .912, which is roughly the gap between an average starter and a to
 | `Ingestion:LookbackDays` | `3` | How many days back each run re-reads, to catch stat corrections |
 | `Ingestion:RunOnStartup` | `true` | Do a pass at startup instead of waiting |
 | `Ingestion:SeedSeasonId` | `20252026` | Season loaded when the database is empty; `0` disables |
+| `Display:DefaultGameScope` | `RegularSeason` | Games counted before the reader chooses: `RegularSeason`, `Playoffs` or `All` |
 | `ConnectionStrings:Blueline` | empty | Empty means "resolve a SQLite file automatically" |
 
 ### Where the database lives
@@ -157,6 +162,9 @@ strain. Everything goes through EF Core, so moving to PostgreSQL is a provider s
 | `GET /api/leaders?season=&stat=&take=` | Season leaders |
 | `GET /api/ingestion/status` | What is stored and how the last run went |
 | `POST /api/ingestion/run?days=` | Run ingestion now |
+
+Every stat endpoint also takes `?scope=RegularSeason|Playoffs|All`; an unrecognised value falls
+back to the regular season rather than erroring, so a stale bookmark still renders.
 
 `season` defaults to the most recent season stored. An OpenAPI document is served at
 `/openapi/v1.json` in development.

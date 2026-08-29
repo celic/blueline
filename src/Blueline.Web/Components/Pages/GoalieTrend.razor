@@ -1,6 +1,8 @@
 @page "/goalies/{PlayerId:int}"
 @rendermode InteractiveServer
 @inject StatsQueryService Queries
+@inject IOptions<DisplayOptions> Display
+@using Microsoft.Extensions.Options
 
 <PageTitle>@(_primary?.SubjectName ?? "Goalie") — Blueline</PageTitle>
 
@@ -18,7 +20,7 @@ else
             }
             <div>
                 <h1>@_primary.SubjectName</h1>
-                <p>@_primary.StatLabel across @_primary.Points.Count appearances of @StatsQueryService.FormatSeason(_seasonId)</p>
+                <p>@_primary.StatLabel across @_primary.Points.Count appearances of @StatsQueryService.FormatSeason(_seasonId) · @_scope.Label().ToLowerInvariant()</p>
             </div>
         </div>
     </div>
@@ -43,6 +45,8 @@ else
                 }
             </select>
         </div>
+
+        <ScopePicker Scope="_scope" ScopeChanged="OnScopeChanged" />
 
         <div class="field">
             <label>View</label>
@@ -159,6 +163,7 @@ else
     private string _stat = "savePctg";
     private int _window = 10;
     private bool _cumulative = true;
+    private GameScope _scope;
     private string _chartKey = "";
     private int _compareKey;
 
@@ -173,6 +178,7 @@ else
         if (_seasons.Count == 0) return;
 
         _seasonId = SeasonQuery ?? _seasons[0].SeasonId;
+        _scope = Display.Value.DefaultGameScope;
         if (!string.IsNullOrWhiteSpace(StatQuery) && StatDefinition.FindGoalie(StatQuery) is not null)
             _stat = StatQuery;
 
@@ -182,26 +188,34 @@ else
 
     private async Task LoadCandidatesAsync()
     {
-        _candidates = await Queries.SearchGoaliesAsync(_seasonId, null, "toi", 40);
+        _candidates = await Queries.SearchGoaliesAsync(_seasonId, null, "toi", 40, _scope);
         _summary = _candidates.FirstOrDefault(c => c.Id == PlayerId);
 
         // A goalie outside the top 40 by minutes still needs their own summary tiles.
         if (_summary is null)
         {
-            var all = await Queries.SearchGoaliesAsync(_seasonId, null, "toi", 200);
+            var all = await Queries.SearchGoaliesAsync(_seasonId, null, "toi", 200, _scope);
             _summary = all.FirstOrDefault(c => c.Id == PlayerId);
         }
     }
 
+    private async Task OnScopeChanged(GameScope scope)
+    {
+        _scope = scope;
+        await LoadCandidatesAsync();
+        await LoadAsync();
+    }
+
+
     private async Task LoadAsync()
     {
-        _primary = await Queries.GetGoalieTrendAsync(PlayerId, _seasonId, _stat, _window);
+        _primary = await Queries.GetGoalieTrendAsync(PlayerId, _seasonId, _stat, _window, _scope);
 
         var comparisonIds = _comparisons.Select(c => c.SubjectId).ToList();
         _comparisons.Clear();
         foreach (var id in comparisonIds)
         {
-            var series = await Queries.GetGoalieTrendAsync(id, _seasonId, _stat, _window);
+            var series = await Queries.GetGoalieTrendAsync(id, _seasonId, _stat, _window, _scope);
             if (series is not null) _comparisons.Add(series);
         }
 
@@ -267,7 +281,7 @@ else
             Precise: _isRate || !_cumulative,
             Subtitles: subtitles);
 
-        _chartKey = $"{PlayerId}-{_seasonId}-{_stat}-{_window}-{_cumulative}-{_comparisons.Count}";
+        _chartKey = $"{PlayerId}-{_seasonId}-{_scope}-{_stat}-{_window}-{_cumulative}-{_comparisons.Count}";
     }
 
     private static List<double?> Pad(IEnumerable<double?> values, int length)
@@ -316,7 +330,7 @@ else
         if (!int.TryParse(e.Value?.ToString(), out var id)) return;
         if (_comparisons.Count >= 3) return;
 
-        var series = await Queries.GetGoalieTrendAsync(id, _seasonId, _stat, _window);
+        var series = await Queries.GetGoalieTrendAsync(id, _seasonId, _stat, _window, _scope);
         if (series is not null && series.Points.Count > 0)
         {
             _comparisons.Add(series);

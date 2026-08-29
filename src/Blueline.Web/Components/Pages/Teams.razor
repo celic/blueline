@@ -1,15 +1,18 @@
 @page "/teams"
 @rendermode InteractiveServer
 @inject StatsQueryService Queries
+@inject IOptions<DisplayOptions> Display
+@using Microsoft.Extensions.Options
 
 <PageTitle>Teams — Blueline</PageTitle>
 
 <div class="page-head">
     <h1>Teams</h1>
-    <p>Final regular-season standings. Open a team to see how it banked points across the year.</p>
+    <p>Records for the selected games. Open a team to see how its season unfolded.</p>
 </div>
 
 <div class="controls">
+    <ScopePicker Scope="_scope" ScopeChanged="OnScopeChanged" />
     <div class="field">
         <label for="season">Season</label>
         <select id="season" value="@_seasonId" @onchange="OnSeasonChanged">
@@ -37,9 +40,12 @@ else
                         <th class="num">GP</th>
                         <th class="num">W</th>
                         <th class="num">L</th>
-                        <th class="num">OTL</th>
-                        <th class="num">PTS</th>
-                        <th class="num">PTS%</th>
+                        @if (_showStandingsPoints)
+                        {
+                            <th class="num">OTL</th>
+                            <th class="num">PTS</th>
+                            <th class="num">PTS%</th>
+                        }
                     </tr>
                 </thead>
                 <tbody>
@@ -59,9 +65,12 @@ else
                             <td class="num muted">@team.GamesPlayed</td>
                             <td class="num">@team.Wins</td>
                             <td class="num">@team.Losses</td>
-                            <td class="num">@team.OvertimeLosses</td>
-                            <td class="num"><strong>@team.StandingsPoints</strong></td>
-                            <td class="num muted">@PointsPercentage(team).ToString("F3")</td>
+                            @if (_showStandingsPoints)
+                            {
+                                <td class="num">@team.OvertimeLosses</td>
+                                <td class="num"><strong>@team.StandingsPoints</strong></td>
+                                <td class="num muted">@PointsPercentage(team).ToString("F3")</td>
+                            }
                         </tr>
                     }
                 </tbody>
@@ -74,6 +83,11 @@ else
     private IReadOnlyList<SeasonSummary> _seasons = [];
     private IReadOnlyList<TeamSummary> _teams = [];
     private int _seasonId;
+    private GameScope _scope;
+
+    // The playoffs award no standings points, so those columns would be meaningless — and a
+    // combined view would show a regular-season points total beside a combined win count.
+    private bool _showStandingsPoints => _scope.HasStandingsPoints();
 
     protected override async Task OnInitializedAsync()
     {
@@ -81,10 +95,17 @@ else
         if (_seasons.Count == 0) return;
 
         _seasonId = _seasons[0].SeasonId;
+        _scope = Display.Value.DefaultGameScope;
         await LoadAsync();
     }
 
-    private async Task LoadAsync() => _teams = await Queries.GetTeamsAsync(_seasonId);
+    private async Task LoadAsync() => _teams = await Queries.GetTeamsAsync(_seasonId, _scope);
+
+    private async Task OnScopeChanged(GameScope scope)
+    {
+        _scope = scope;
+        await LoadAsync();
+    }
 
     private async Task OnSeasonChanged(ChangeEventArgs e)
     {

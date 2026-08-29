@@ -1,6 +1,8 @@
 @page "/players"
 @rendermode InteractiveServer
 @inject StatsQueryService Queries
+@inject IOptions<DisplayOptions> Display
+@using Microsoft.Extensions.Options
 
 <PageTitle>Players — Blueline</PageTitle>
 
@@ -14,6 +16,7 @@
         <label for="search">Search</label>
         <input id="search" type="search" placeholder="Name…" value="@_search" @oninput="OnSearchInput" />
     </div>
+    <ScopePicker Scope="_scope" ScopeChanged="OnScopeChanged" />
     <div class="field">
         <label for="season">Season</label>
         <select id="season" value="@_seasonId" @onchange="OnSeasonChanged">
@@ -81,6 +84,7 @@ else
     private IReadOnlyList<PlayerSummary> _players = [];
     private int _seasonId;
     private string _search = "";
+    private GameScope _scope;
 
     protected override async Task OnInitializedAsync()
     {
@@ -88,10 +92,17 @@ else
         if (_seasons.Count == 0) return;
 
         _seasonId = _seasons[0].SeasonId;
+        _scope = Display.Value.DefaultGameScope;
         await LoadAsync();
     }
 
-    private async Task LoadAsync() => _players = await Queries.SearchPlayersAsync(_seasonId, _search, 50);
+    private async Task LoadAsync() => _players = await Queries.SearchPlayersAsync(_seasonId, _search, 50, _scope);
+
+    private async Task OnScopeChanged(GameScope scope)
+    {
+        _scope = scope;
+        await LoadAsync();
+    }
 
     private async Task OnSearchInput(ChangeEventArgs e)
     {

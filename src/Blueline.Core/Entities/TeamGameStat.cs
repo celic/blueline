@@ -16,6 +16,9 @@ public class TeamGameStat
     /// <summary>W, L or OTL.</summary>
     public string Result { get; set; } = "";
 
-    /// <summary>Standings points earned: 2 for a win, 1 for an overtime/shootout loss.</summary>
+    /// <summary>
+    /// Standings points earned: 2 for a win, 1 for an overtime or shootout loss. Always zero for
+    /// playoff games, which award no standings points.
+    /// </summary>
     public int Points { get; set; }
 }

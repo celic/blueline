@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @inject StatsQueryService Queries
 @inject NavigationManager Nav
+@inject IOptions<DisplayOptions> Display
+@using Microsoft.Extensions.Options
 
 <PageTitle>@(_primary?.SubjectName ?? "Player") — Blueline</PageTitle>
 
@@ -19,7 +21,7 @@ else
             }
             <div>
                 <h1>@_primary.SubjectName</h1>
-                <p>@_primary.StatLabel through @_primary.Points.Count games of @StatsQueryService.FormatSeason(_seasonId)</p>
+                <p>@_primary.StatLabel through @_primary.Points.Count games of @StatsQueryService.FormatSeason(_seasonId) · @_scope.Label().ToLowerInvariant()</p>
             </div>
         </div>
     </div>
@@ -44,6 +46,8 @@ else
                 }
             </select>
         </div>
+
+        <ScopePicker Scope="_scope" ScopeChanged="OnScopeChanged" />
 
         <div class="field">
             <label>View</label>
@@ -166,6 +170,7 @@ else
     private string _stat = "points";
     private int _window = 10;
     private ViewMode _view = ViewMode.Cumulative;
+    private GameScope _scope;
 
     // Forces the chart component to rebuild rather than patch a stale canvas.
     private string _chartKey = "";
@@ -179,6 +184,7 @@ else
         if (_seasons.Count == 0) return;
 
         _seasonId = SeasonQuery ?? _seasons[0].SeasonId;
+        _scope = Display.Value.DefaultGameScope;
 
         // Goalies record none of the skater stats this page charts, so send them to the page
         // built for them rather than rendering an empty season.
@@ -192,22 +198,34 @@ else
         if (!string.IsNullOrWhiteSpace(StatQuery) && StatDefinition.FindSkater(StatQuery) is not null)
             _stat = StatQuery;
 
-        _candidates = await Queries.SearchPlayersAsync(_seasonId, null, 40);
-        _headshotUrl = _candidates.FirstOrDefault(c => c.Id == PlayerId)?.HeadshotUrl;
-
+        await LoadCandidatesAsync();
         await LoadAsync();
     }
 
+    private async Task LoadCandidatesAsync()
+    {
+        _candidates = await Queries.SearchPlayersAsync(_seasonId, null, 40, _scope);
+        _headshotUrl = _candidates.FirstOrDefault(c => c.Id == PlayerId)?.HeadshotUrl;
+    }
+
+    private async Task OnScopeChanged(GameScope scope)
+    {
+        _scope = scope;
+        await LoadCandidatesAsync();
+        await LoadAsync();
+    }
+
+
     private async Task LoadAsync()
     {
-        _primary = await Queries.GetPlayerTrendAsync(PlayerId, _seasonId, _stat, _window);
+        _primary = await Queries.GetPlayerTrendAsync(PlayerId, _seasonId, _stat, _window, _scope);
 
         // Comparisons are held by id, so re-fetch them whenever the stat or season moves.
         var comparisonIds = _comparisons.Select(c => c.SubjectId).ToList();
         _comparisons.Clear();
         foreach (var id in comparisonIds)
         {
-            var series = await Queries.GetPlayerTrendAsync(id, _seasonId, _stat, _window);
+            var series = await Queries.GetPlayerTrendAsync(id, _seasonId, _stat, _window, _scope);
             if (series is not null) _comparisons.Add(series);
         }
 
@@ -276,7 +294,7 @@ else
             Precise: _view == ViewMode.PerGame,
             Subtitles: subtitles);
 
-        _chartKey = $"{PlayerId}-{_seasonId}-{_stat}-{_window}-{_view}-{_comparisons.Count}";
+        _chartKey = $"{PlayerId}-{_seasonId}-{_scope}-{_stat}-{_window}-{_view}-{_comparisons.Count}";
     }
 
     /// <summary>Pads a shorter season with nulls so Chart.js keeps every series on one x axis.</summary>
@@ -306,7 +324,7 @@ else
     private async Task OnSeasonChanged(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out var seasonId)) _seasonId = seasonId;
-        _candidates = await Queries.SearchPlayersAsync(_seasonId, null, 40);
+        await LoadCandidatesAsync();
         await LoadAsync();
     }
 
@@ -327,7 +345,7 @@ else
         if (!int.TryParse(e.Value?.ToString(), out var id)) return;
         if (_comparisons.Count >= 3) return;
 
-        var series = await Queries.GetPlayerTrendAsync(id, _seasonId, _stat, _window);
+        var series = await Queries.GetPlayerTrendAsync(id, _seasonId, _stat, _window, _scope);
         if (series is not null && series.Points.Count > 0)
         {
             _comparisons.Add(series);

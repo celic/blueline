@@ -22,7 +22,10 @@
         <div class="table-scroll">
             <table>
                 <thead>
-                    <tr><th>Season</th><th class="num">Games</th><th>First</th><th>Last</th></tr>
+                    <tr>
+                        <th>Season</th><th class="num">Games</th><th class="num">Regular</th>
+                        <th class="num">Playoff</th><th>First</th><th>Last</th>
+                    </tr>
                 </thead>
                 <tbody>
                     @foreach (var season in _seasons)
@@ -30,6 +33,8 @@
                         <tr>
                             <td>@season.Label</td>
                             <td class="num">@season.GameCount</td>
+                            <td class="num muted">@season.RegularSeasonGames</td>
+                            <td class="num muted">@season.PlayoffGames</td>
                             <td class="muted">@season.FirstGame?.ToString("MMM d, yyyy")</td>
                             <td class="muted">@season.LastGame?.ToString("MMM d, yyyy")</td>
                         </tr>

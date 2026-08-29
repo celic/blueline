@@ -24,6 +24,8 @@ public static class StatsEndpoints
                 skater = StatDefinition.Skater,
                 goalie = StatDefinition.Goalie,
                 team = StatDefinition.Team,
+                // Accepted by every stat endpoint as ?scope=; anything else falls back to the first.
+                scopes = Enum.GetNames<GameScope>(),
             })
             .WithSummary("Stats that can be charted, for skaters, goalies and teams.");
 
@@ -32,12 +34,14 @@ public static class StatsEndpoints
                 CancellationToken ct,
                 int? season = null,
                 string? search = null,
-                int take = 25) =>
+                int take = 25,
+                string? scope = null) =>
             {
                 var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
                 if (seasonId is null) return Results.Ok(Array.Empty<PlayerSummary>());
 
-                return Results.Ok(await queries.SearchPlayersAsync(seasonId.Value, search, Clamp(take, 100), ct));
+                return Results.Ok(await queries.SearchPlayersAsync(
+                    seasonId.Value, search, Clamp(take, 100), GameScopes.Parse(scope), ct));
             })
             .WithSummary("Search skaters in a season, ordered by points.");
 
@@ -47,12 +51,14 @@ public static class StatsEndpoints
                 CancellationToken ct,
                 int? season = null,
                 string stat = "points",
-                int window = 10) =>
+                int window = 10,
+                string? scope = null) =>
             {
                 var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
                 if (seasonId is null) return Results.NotFound();
 
-                var series = await queries.GetPlayerTrendAsync(playerId, seasonId.Value, stat, Clamp(window, 41), ct);
+                var series = await queries.GetPlayerTrendAsync(
+                    playerId, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
                 return series is null
                     ? Results.NotFound(new { message = $"No player {playerId}, or '{stat}' is not a chartable stat." })
                     : Results.Ok(series);
@@ -65,12 +71,14 @@ public static class StatsEndpoints
                 int? season = null,
                 string? search = null,
                 string stat = "savePctg",
-                int take = 25) =>
+                int take = 25,
+                string? scope = null) =>
             {
                 var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
                 if (seasonId is null) return Results.Ok(Array.Empty<GoalieSummary>());
 
-                return Results.Ok(await queries.SearchGoaliesAsync(seasonId.Value, search, stat, Clamp(take, 100), ct));
+                return Results.Ok(await queries.SearchGoaliesAsync(
+                    seasonId.Value, search, stat, Clamp(take, 100), GameScopes.Parse(scope), ct));
             })
             .WithSummary("Goalies in a season, ranked by a stat. Rate stats apply a minutes qualification.");
 
@@ -80,26 +88,32 @@ public static class StatsEndpoints
                 CancellationToken ct,
                 int? season = null,
                 string stat = "savePctg",
-                int window = 10) =>
+                int window = 10,
+                string? scope = null) =>
             {
                 var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
                 if (seasonId is null) return Results.NotFound();
 
-                var series = await queries.GetGoalieTrendAsync(playerId, seasonId.Value, stat, Clamp(window, 41), ct);
+                var series = await queries.GetGoalieTrendAsync(
+                    playerId, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
                 return series is null
                     ? Results.NotFound(new { message = $"No goalie {playerId}, or '{stat}' is not a chartable goalie stat." })
                     : Results.Ok(series);
             })
             .WithSummary("A goalie's game-by-game trend. Rates are weighted by shots faced, not averaged.");
 
-        api.MapGet("/teams", async (StatsQueryService queries, CancellationToken ct, int? season = null) =>
+        api.MapGet("/teams", async (
+                StatsQueryService queries,
+                CancellationToken ct,
+                int? season = null,
+                string? scope = null) =>
             {
                 var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
                 if (seasonId is null) return Results.Ok(Array.Empty<TeamSummary>());
 
-                return Results.Ok(await queries.GetTeamsAsync(seasonId.Value, ct));
+                return Results.Ok(await queries.GetTeamsAsync(seasonId.Value, GameScopes.Parse(scope), ct));
             })
-            .WithSummary("Team standings for a season.");
+            .WithSummary("Team records for a season. Standings points only exist in the regular season.");
 
         api.MapGet("/teams/{teamId:int}/trend", async (
                 int teamId,
@@ -107,12 +121,14 @@ public static class StatsEndpoints
                 CancellationToken ct,
                 int? season = null,
                 string stat = "points",
-                int window = 10) =>
+                int window = 10,
+                string? scope = null) =>
             {
                 var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
                 if (seasonId is null) return Results.NotFound();
 
-                var series = await queries.GetTeamTrendAsync(teamId, seasonId.Value, stat, Clamp(window, 41), ct);
+                var series = await queries.GetTeamTrendAsync(
+                    teamId, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
                 return series is null
                     ? Results.NotFound(new { message = $"No team {teamId}, or '{stat}' is not a chartable stat." })
                     : Results.Ok(series);
@@ -124,12 +140,14 @@ public static class StatsEndpoints
                 CancellationToken ct,
                 int? season = null,
                 string stat = "points",
-                int take = 20) =>
+                int take = 20,
+                string? scope = null) =>
             {
                 var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
                 if (seasonId is null) return Results.Ok(Array.Empty<LeaderRow>());
 
-                return Results.Ok(await queries.GetLeadersAsync(seasonId.Value, stat, Clamp(take, 100), ct));
+                return Results.Ok(await queries.GetLeadersAsync(
+                    seasonId.Value, stat, Clamp(take, 100), GameScopes.Parse(scope), ct));
             })
             .WithSummary("Season leaders for a stat.");
 

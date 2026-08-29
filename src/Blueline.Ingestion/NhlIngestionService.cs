@@ -262,15 +262,21 @@ public class NhlIngestionService(
 
         var won = goalsFor > goalsAgainst;
 
-        // A loss past regulation still banks a point; a regulation loss banks nothing.
-        var lostBeyondRegulation = !won && game.LastPeriodType is "OT" or "SO";
+        // Standings points are a regular-season construct; the playoffs award none at all.
+        // Recording playoff points would invent a number that does not exist, and summing a
+        // combined season would then overstate a club's actual standings total.
+        var awardsStandingsPoints = game.GameType == GameTypes.Regular;
+
+        // A regular-season loss past regulation still banks a point; a regulation loss banks
+        // nothing. In the playoffs an overtime loss is simply a loss.
+        var lostBeyondRegulation = !won && awardsStandingsPoints && game.LastPeriodType is "OT" or "SO";
 
         stat.OpponentTeamId = isHome ? game.AwayTeamId : game.HomeTeamId;
         stat.IsHome = isHome;
         stat.GoalsFor = goalsFor;
         stat.GoalsAgainst = goalsAgainst;
         stat.Result = won ? "W" : lostBeyondRegulation ? "OTL" : "L";
-        stat.Points = won ? 2 : lostBeyondRegulation ? 1 : 0;
+        stat.Points = !awardsStandingsPoints ? 0 : won ? 2 : lostBeyondRegulation ? 1 : 0;
     }
 
     private async Task UpsertPlayerStatsAsync(long gameId, int teamId, TeamPlayers? players, CancellationToken ct)

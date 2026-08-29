@@ -1,3 +1,4 @@
+using Blueline.Core.Dtos;
 using Blueline.Data;
 using Blueline.Data.Queries;
 using Blueline.Ingestion.Nhl;
@@ -22,6 +23,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<NhlIngestionService>();
 
         services.Configure<IngestionOptions>(configuration.GetSection(IngestionOptions.SectionName));
+        services.Configure<DisplayOptions>(configuration.GetSection(DisplayOptions.SectionName));
         services.TryAddSingletonTimeProvider();
 
         services.AddHttpClient<NhlApiClient>(client =>

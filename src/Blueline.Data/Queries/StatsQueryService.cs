@@ -23,6 +23,8 @@ public class StatsQueryService(BluelineDbContext db)
             {
                 SeasonId = g.Key,
                 Count = g.Count(),
+                Regular = g.Count(x => x.GameType == GameTypes.Regular),
+                Playoff = g.Count(x => x.GameType == GameTypes.Playoffs),
                 First = g.Min(x => x.GameDate),
                 Last = g.Max(x => x.GameDate),
             })
@@ -30,7 +32,8 @@ public class StatsQueryService(BluelineDbContext db)
             .ToListAsync(ct);
 
         return rows
-            .Select(r => new SeasonSummary(r.SeasonId, FormatSeason(r.SeasonId), r.Count, r.First, r.Last))
+            .Select(r => new SeasonSummary(
+                r.SeasonId, FormatSeason(r.SeasonId), r.Count, r.Regular, r.Playoff, r.First, r.Last))
             .ToList();
     }
 
@@ -47,9 +50,10 @@ public class StatsQueryService(BluelineDbContext db)
         await db.Players.FirstOrDefaultAsync(p => p.Id == playerId, ct);
 
     public async Task<IReadOnlyList<PlayerSummary>> SearchPlayersAsync(
-        int seasonId, string? search, int take = 25, CancellationToken ct = default)
+        int seasonId, string? search, int take = 25,
+        GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
     {
-        var stats = RegularSeasonSkaterStats(seasonId);
+        var stats = SkaterStats(seasonId, scope);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -76,7 +80,7 @@ public class StatsQueryService(BluelineDbContext db)
 
         var ids = rows.Select(r => r.PlayerId).ToList();
         var players = await db.Players.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        var teams = await GetPrimaryTeamAbbrevsAsync(seasonId, ids, ct);
+        var teams = await GetPrimaryTeamAbbrevsAsync(seasonId, ids, scope, ct);
 
         return rows
             .Where(r => players.ContainsKey(r.PlayerId))
@@ -103,10 +107,10 @@ public class StatsQueryService(BluelineDbContext db)
         string? search = null,
         string stat = "savePctg",
         int take = 25,
+        GameScope scope = GameScope.RegularSeason,
         CancellationToken ct = default)
     {
-        var stats = db.GoalieGameStats
-            .Where(s => s.Game!.SeasonId == seasonId && s.Game.GameType == GameTypes.Regular);
+        var stats = GoalieStats(seasonId, scope);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -138,7 +142,7 @@ public class StatsQueryService(BluelineDbContext db)
 
         var ids = rows.Select(r => r.PlayerId).ToList();
         var players = await db.Players.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        var primaryTeams = await GetGoaliePrimaryTeamsAsync(seasonId, ids, ct);
+        var primaryTeams = await GetGoaliePrimaryTeamsAsync(seasonId, ids, scope, ct);
 
         var summaries = rows
             .Where(r => players.ContainsKey(r.PlayerId))
@@ -177,13 +181,10 @@ public class StatsQueryService(BluelineDbContext db)
     /// Mirrors <see cref="GetPrimaryTeamAbbrevsAsync"/>, which works on skater rows.
     /// </summary>
     private async Task<Dictionary<int, string>> GetGoaliePrimaryTeamsAsync(
-        int seasonId, List<int> playerIds, CancellationToken ct)
+        int seasonId, List<int> playerIds, GameScope scope, CancellationToken ct)
     {
-        var counts = await db.GoalieGameStats
-            .Where(s => s.Game!.SeasonId == seasonId
-                        && s.Game.GameType == GameTypes.Regular
-                        && s.TimeOnIceSeconds > 0
-                        && playerIds.Contains(s.PlayerId))
+        var counts = await GoalieStats(seasonId, scope)
+            .Where(s => s.TimeOnIceSeconds > 0 && playerIds.Contains(s.PlayerId))
             .GroupBy(s => new { s.PlayerId, s.TeamId })
             .Select(g => new { g.Key.PlayerId, g.Key.TeamId, Games = g.Count() })
             .ToListAsync(ct);
@@ -209,7 +210,8 @@ public class StatsQueryService(BluelineDbContext db)
         };
 
     public async Task<TrendSeries?> GetGoalieTrendAsync(
-        int playerId, int seasonId, string stat, int rollingWindow = 10, CancellationToken ct = default)
+        int playerId, int seasonId, string stat, int rollingWindow = 10,
+        GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
     {
         var definition = StatDefinition.FindGoalie(stat);
         if (definition is null) return null;
@@ -217,10 +219,8 @@ public class StatsQueryService(BluelineDbContext db)
         var player = await db.Players.FirstOrDefaultAsync(p => p.Id == playerId, ct);
         if (player is null) return null;
 
-        var rows = await db.GoalieGameStats
+        var rows = await GoalieStats(seasonId, scope)
             .Where(s => s.PlayerId == playerId
-                        && s.Game!.SeasonId == seasonId
-                        && s.Game.GameType == GameTypes.Regular
                         // A goalie dressed as the backup logs a row with no ice time; those are
                         // not appearances and would flatten the chart with meaningless zeroes.
                         && s.TimeOnIceSeconds > 0)
@@ -259,10 +259,12 @@ public class StatsQueryService(BluelineDbContext db)
             points, definition.IsRate);
     }
 
-    public async Task<IReadOnlyList<TeamSummary>> GetTeamsAsync(int seasonId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<TeamSummary>> GetTeamsAsync(
+        int seasonId, GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
     {
+        var types = scope.GameTypes();
         var rows = await db.TeamGameStats
-            .Where(s => s.Game!.SeasonId == seasonId && s.Game.GameType == GameTypes.Regular)
+            .Where(s => s.Game!.SeasonId == seasonId && types.Contains(s.Game.GameType))
             .GroupBy(s => s.TeamId)
             .Select(g => new
             {
@@ -291,7 +293,8 @@ public class StatsQueryService(BluelineDbContext db)
     }
 
     public async Task<TrendSeries?> GetPlayerTrendAsync(
-        int playerId, int seasonId, string stat, int rollingWindow = 10, CancellationToken ct = default)
+        int playerId, int seasonId, string stat, int rollingWindow = 10,
+        GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
     {
         var definition = StatDefinition.FindSkater(stat);
         if (definition is null) return null;
@@ -300,7 +303,7 @@ public class StatsQueryService(BluelineDbContext db)
         if (player is null) return null;
 
         // One player's season is ~82 rows, so pull the columns and pick the stat in memory.
-        var rows = await RegularSeasonSkaterStats(seasonId)
+        var rows = await SkaterStats(seasonId, scope)
             .Where(s => s.PlayerId == playerId)
             .OrderBy(s => s.Game!.GameDate)
             .ThenBy(s => s.GameId)
@@ -324,7 +327,8 @@ public class StatsQueryService(BluelineDbContext db)
     }
 
     public async Task<TrendSeries?> GetTeamTrendAsync(
-        int teamId, int seasonId, string stat, int rollingWindow = 10, CancellationToken ct = default)
+        int teamId, int seasonId, string stat, int rollingWindow = 10,
+        GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
     {
         var definition = StatDefinition.FindTeam(stat);
         if (definition is null) return null;
@@ -332,8 +336,9 @@ public class StatsQueryService(BluelineDbContext db)
         var team = await db.Teams.FirstOrDefaultAsync(t => t.Id == teamId, ct);
         if (team is null) return null;
 
+        var types = scope.GameTypes();
         var rows = await db.TeamGameStats
-            .Where(s => s.TeamId == teamId && s.Game!.SeasonId == seasonId && s.Game.GameType == GameTypes.Regular)
+            .Where(s => s.TeamId == teamId && s.Game!.SeasonId == seasonId && types.Contains(s.Game.GameType))
             .OrderBy(s => s.Game!.GameDate)
             .ThenBy(s => s.GameId)
             .Select(s => new
@@ -368,7 +373,8 @@ public class StatsQueryService(BluelineDbContext db)
     }
 
     public async Task<IReadOnlyList<LeaderRow>> GetLeadersAsync(
-        int seasonId, string stat, int take = 20, CancellationToken ct = default)
+        int seasonId, string stat, int take = 20,
+        GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
     {
         var definition = StatDefinition.FindSkater(stat);
         if (definition is null) return [];
@@ -379,7 +385,7 @@ public class StatsQueryService(BluelineDbContext db)
         // type. The repetition is deliberate and cannot be factored into a helper: EF Core will
         // not translate a GroupBy whose key or aggregate is projected into a named type, and an
         // anonymous type cannot cross a method boundary.
-        var stats = RegularSeasonSkaterStats(seasonId);
+        var stats = SkaterStats(seasonId, scope);
         var aggregated = definition.Key switch
         {
             "goals" => stats.GroupBy(s => s.PlayerId)
@@ -413,7 +419,7 @@ public class StatsQueryService(BluelineDbContext db)
 
         var ids = totals.Select(t => t.PlayerId).ToList();
         var players = await db.Players.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        var teams = await GetPrimaryTeamAbbrevsAsync(seasonId, ids, ct);
+        var teams = await GetPrimaryTeamAbbrevsAsync(seasonId, ids, scope, ct);
 
         return totals
             .Where(t => players.ContainsKey(t.PlayerId))
@@ -444,16 +450,29 @@ public class StatsQueryService(BluelineDbContext db)
             last?.Status.ToString(), last?.Error, gameCount, latestDate);
     }
 
-    private IQueryable<SkaterGameStat> RegularSeasonSkaterStats(int seasonId) =>
-        db.SkaterGameStats.Where(s => s.Game!.SeasonId == seasonId && s.Game.GameType == GameTypes.Regular);
+    /// <summary>
+    /// Skater rows for a season, limited to the game types the scope admits. Expressed as a
+    /// Contains over an array so EF Core emits a single IN clause.
+    /// </summary>
+    private IQueryable<SkaterGameStat> SkaterStats(int seasonId, GameScope scope)
+    {
+        var types = scope.GameTypes();
+        return db.SkaterGameStats.Where(s => s.Game!.SeasonId == seasonId && types.Contains(s.Game.GameType));
+    }
+
+    private IQueryable<GoalieGameStat> GoalieStats(int seasonId, GameScope scope)
+    {
+        var types = scope.GameTypes();
+        return db.GoalieGameStats.Where(s => s.Game!.SeasonId == seasonId && types.Contains(s.Game.GameType));
+    }
 
     /// <summary>
     /// A player can be traded mid-season, so label them by the club they played most games for.
     /// </summary>
     private async Task<Dictionary<int, string>> GetPrimaryTeamAbbrevsAsync(
-        int seasonId, List<int> playerIds, CancellationToken ct)
+        int seasonId, List<int> playerIds, GameScope scope, CancellationToken ct)
     {
-        var counts = await RegularSeasonSkaterStats(seasonId)
+        var counts = await SkaterStats(seasonId, scope)
             .Where(s => playerIds.Contains(s.PlayerId))
             .GroupBy(s => new { s.PlayerId, s.TeamId })
             .Select(g => new { g.Key.PlayerId, g.Key.TeamId, Games = g.Count() })

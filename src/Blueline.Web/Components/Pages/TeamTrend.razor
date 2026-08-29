@@ -1,6 +1,8 @@
 @page "/teams/{TeamId:int}"
 @rendermode InteractiveServer
 @inject StatsQueryService Queries
+@inject IOptions<DisplayOptions> Display
+@using Microsoft.Extensions.Options
 
 <PageTitle>@(_series?.SubjectName ?? "Team") — Blueline</PageTitle>
 
@@ -12,7 +14,7 @@ else
 {
     <div class="page-head">
         <h1>@_series.SubjectName</h1>
-        <p>@_series.StatLabel across @_series.Points.Count games of @StatsQueryService.FormatSeason(_seasonId)</p>
+        <p>@_series.StatLabel across @_series.Points.Count games of @StatsQueryService.FormatSeason(_seasonId) · @_scope.Label().ToLowerInvariant()</p>
     </div>
 
     <div class="controls">
@@ -35,6 +37,8 @@ else
                 }
             </select>
         </div>
+
+        <ScopePicker Scope="_scope" ScopeChanged="OnScopeChanged" />
 
         <div class="field">
             <label>View</label>
@@ -73,6 +77,14 @@ else
                 <div class="label">Record</div>
             </div>
         </div>
+        @if (_stat == "points" && !_scope.HasStandingsPoints())
+        {
+            <p class="muted">
+                Standings points are a regular-season concept — playoff games award none, so this
+                line flattens wherever the playoffs begin. Switch the games filter to the regular
+                season, or pick another stat.
+            </p>
+        }
         <TrendChart Spec="_spec" @key="_chartKey" />
     </div>
 }
@@ -90,6 +102,7 @@ else
     private string _stat = "points";
     private int _window = 10;
     private bool _cumulative = true;
+    private GameScope _scope;
     private string _chartKey = "";
 
     protected override async Task OnParametersSetAsync()
@@ -98,18 +111,25 @@ else
         if (_seasons.Count == 0) return;
 
         _seasonId = SeasonQuery ?? _seasons[0].SeasonId;
+        _scope = Display.Value.DefaultGameScope;
         await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
-        _series = await Queries.GetTeamTrendAsync(TeamId, _seasonId, _stat, _window);
+        _series = await Queries.GetTeamTrendAsync(TeamId, _seasonId, _stat, _window, _scope);
 
-        var standings = await Queries.GetTeamsAsync(_seasonId);
+        var standings = await Queries.GetTeamsAsync(_seasonId, _scope);
         var team = standings.FirstOrDefault(t => t.Id == TeamId);
         _record = team is null ? "" : $"{team.Wins}-{team.Losses}-{team.OvertimeLosses}";
 
         BuildSpec();
+    }
+
+    private async Task OnScopeChanged(GameScope scope)
+    {
+        _scope = scope;
+        await LoadAsync();
     }
 
     private void BuildSpec()
@@ -159,7 +179,7 @@ else
             Precise: !_cumulative,
             Subtitles: subtitles);
 
-        _chartKey = $"{TeamId}-{_seasonId}-{_stat}-{_window}-{_cumulative}";
+        _chartKey = $"{TeamId}-{_seasonId}-{_scope}-{_stat}-{_window}-{_cumulative}";
     }
 
     private async Task OnStatChanged(ChangeEventArgs e)

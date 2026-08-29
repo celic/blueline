@@ -1,6 +1,8 @@
 @page "/goalies"
 @rendermode InteractiveServer
 @inject StatsQueryService Queries
+@inject IOptions<DisplayOptions> Display
+@using Microsoft.Extensions.Options
 
 <PageTitle>Goalies — Blueline</PageTitle>
 
@@ -29,6 +31,7 @@ else
                 }
             </select>
         </div>
+        <ScopePicker Scope="_scope" ScopeChanged="OnScopeChanged" />
         <div class="field">
             <label for="stat">Rank by</label>
             <select id="stat" value="@_stat" @onchange="OnStatChanged">
@@ -110,6 +113,7 @@ else
     private int _seasonId;
     private string _search = "";
     private string _stat = "savePctg";
+    private GameScope _scope;
 
     private bool _isRateStat => StatDefinition.FindGoalie(_stat)?.IsRate ?? false;
 
@@ -119,11 +123,18 @@ else
         if (_seasons.Count == 0) return;
 
         _seasonId = _seasons[0].SeasonId;
+        _scope = Display.Value.DefaultGameScope;
         await LoadAsync();
     }
 
     private async Task LoadAsync() =>
-        _goalies = await Queries.SearchGoaliesAsync(_seasonId, _search, _stat, 50);
+        _goalies = await Queries.SearchGoaliesAsync(_seasonId, _search, _stat, 50, _scope);
+
+    private async Task OnScopeChanged(GameScope scope)
+    {
+        _scope = scope;
+        await LoadAsync();
+    }
 
     private async Task OnSearchInput(ChangeEventArgs e)
     {

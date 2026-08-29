@@ -79,7 +79,19 @@ public record TeamSummary(
     int OvertimeLosses,
     int StandingsPoints);
 
-public record SeasonSummary(int SeasonId, string Label, int GameCount, DateOnly? FirstGame, DateOnly? LastGame);
+/// <param name="GameCount">Every stored game, regular season and playoffs together.</param>
+/// <param name="RegularSeasonGames">
+/// Games counted by the default scope. Reported separately because a leaderboard covering only
+/// the regular season should not sit next to a total that silently includes playoff games.
+/// </param>
+public record SeasonSummary(
+    int SeasonId,
+    string Label,
+    int GameCount,
+    int RegularSeasonGames,
+    int PlayoffGames,
+    DateOnly? FirstGame,
+    DateOnly? LastGame);
 
 public record LeaderRow(int Rank, int PlayerId, string FullName, string Position, string? TeamAbbrev, string? HeadshotUrl, int GamesPlayed, double Value);
 

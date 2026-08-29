@@ -38,19 +38,31 @@ the box score `playerByGameStats` payload, so it would have to be inferred by jo
 appearance to the game result and working out who was in net at the end — guessable, but not
 reliably, for relief appearances. Worth doing properly if you want a wins column.
 
-### 1.2 Make playoff games viewable — `todo`
+### 1.2 Make playoff games viewable — `done`
 
-All 82 playoff games are ingested. Every query filters them out — `GameTypes.Regular` is
-hardcoded in three places in `StatsQueryService.cs` (`RegularSeasonSkaterStats`,
-`GetTeamsAsync`, `GetTeamTrendAsync`).
+Delivered. A `GameScope` (`RegularSeason` / `Playoffs` / `All`) threads through every query, the
+API takes it as `?scope=`, and a shared `ScopePicker` sits on all seven pages. The default is
+configurable via `Display:DefaultGameScope` and stays `RegularSeason`, because that is what a
+published stat line means — nobody's "42 goals" silently includes playoff goals.
+`GetSeasonsAsync` now reports the regular/playoff split, so the Data page no longer shows 1,394
+games beside leaderboards covering 1,312.
 
-- Thread a game-type selector through the query methods and add a Regular / Playoffs (/ Both)
-  control to the pages and a `gameType` query parameter to the API.
-- **Fix the resulting inconsistency while here:** `GetSeasonsAsync` counts *all* game types, so
-  the Data page reports 1,394 games while every leaderboard covers only 1,312. Either report the
-  split or filter it to match.
-- Playoff series are not evenly sized, so "game number" on the x axis means something different
-  than it does in the regular season. Decide whether playoff trends chart by game number or date.
+**Two data bugs surfaced once the playoffs became visible**, both fixed in ingestion and repaired
+by re-running the backfill:
+
+- **22 playoff overtime losses were recorded as `OTL` with a standings point each.** There is no
+  loser point in the playoffs; an overtime loss is simply a loss.
+- **Playoff wins were awarding 2 standings points.** The playoffs award none at all, so a
+  combined view was overstating clubs' standings totals — Colorado read as 137 points rather
+  than their actual 121.
+
+`TeamGameStat.Points` now means strictly "standings points earned", zero for every playoff game.
+The pages hide the OTL/PTS/PTS% columns whenever the scope includes playoff games, and the team
+trend page explains why a points line flattens if you chart points across the playoffs.
+
+Still open, deliberately: playoff trends are plotted by game number like everything else. Series
+vary in length and the gaps between rounds are long, so plotting by date would read more
+honestly — worth revisiting if playoff charts get real use.
 
 ### 1.3 Extend multi-player comparison — `todo`
 

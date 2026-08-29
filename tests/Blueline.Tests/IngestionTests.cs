@@ -1,3 +1,4 @@
+using Blueline.Core.Dtos;
 using Blueline.Core.Entities;
 using Blueline.Data;
 using Blueline.Data.Queries;
@@ -177,6 +178,136 @@ public class IngestionTests
             Assert.That(run.Status, Is.EqualTo(IngestionStatus.Succeeded));
             Assert.That(run.GamesIngested, Is.Zero);
             Assert.That(run.CompletedUtc, Is.Not.Null);
+        });
+    }
+
+    /// <summary>A regular-season game and a playoff game, each an overtime home loss.</summary>
+    private static StubNhlApi RegularAndPlayoffOvertimeLosses() => new StubNhlApi()
+        .Add("score/2026-01-15", StubNhlApi.ScoreOfType("2026-01-15", 2, 2025020001))
+        .Add("gamecenter/2025020001/boxscore",
+            StubNhlApi.Boxscore(2025020001, "2026-01-15", 21, "HME", 22, "AWY",
+                homeScore: 2, awayScore: 3, lastPeriodType: "OT", gameType: 2))
+        .Add("score/2026-05-15", StubNhlApi.ScoreOfType("2026-05-15", 3, 2025030001))
+        .Add("gamecenter/2025030001/boxscore",
+            StubNhlApi.Boxscore(2025030001, "2026-05-15", 21, "HME", 22, "AWY",
+                homeScore: 2, awayScore: 3, lastPeriodType: "OT", gameType: 3));
+
+    [Test]
+    public async Task A_playoff_overtime_loss_banks_no_point_unlike_a_regular_season_one()
+    {
+        var service = BuildService(RegularAndPlayoffOvertimeLosses());
+        await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+        await service.IngestRecentAsync(new DateOnly(2026, 5, 15), lookbackDays: 0);
+
+        var regular = await _db.TeamGameStats.SingleAsync(s => s.GameId == 2025020001 && s.TeamId == 21);
+        var playoff = await _db.TeamGameStats.SingleAsync(s => s.GameId == 2025030001 && s.TeamId == 21);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(regular.Result, Is.EqualTo("OTL"));
+            Assert.That(regular.Points, Is.EqualTo(1));
+
+            // There is no loser point in the playoffs; an overtime loss is simply a loss.
+            Assert.That(playoff.Result, Is.EqualTo("L"));
+            Assert.That(playoff.Points, Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task A_playoff_win_awards_no_standings_points()
+    {
+        var stub = new StubNhlApi()
+            .Add("score/2026-05-15", StubNhlApi.ScoreOfType("2026-05-15", 3, 2025030001))
+            .Add("gamecenter/2025030001/boxscore",
+                StubNhlApi.Boxscore(2025030001, "2026-05-15", 21, "HME", 22, "AWY",
+                    homeScore: 4, awayScore: 2, gameType: 3));
+
+        await BuildService(stub).IngestRecentAsync(new DateOnly(2026, 5, 15), lookbackDays: 0);
+
+        var winner = await _db.TeamGameStats.SingleAsync(s => s.TeamId == 21);
+        Assert.Multiple(() =>
+        {
+            Assert.That(winner.Result, Is.EqualTo("W"), "the result is still a win");
+            Assert.That(winner.Points, Is.Zero, "but the playoffs award no standings points");
+        });
+    }
+
+    [Test]
+    public async Task A_combined_season_reports_only_the_regular_seasons_standings_points()
+    {
+        var service = BuildService(RegularAndPlayoffOvertimeLosses());
+        await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+        await service.IngestRecentAsync(new DateOnly(2026, 5, 15), lookbackDays: 0);
+
+        var queries = new StatsQueryService(_db);
+        var regular = (await queries.GetTeamsAsync(20252026, GameScope.RegularSeason)).Single(t => t.Id == 21);
+        var combined = (await queries.GetTeamsAsync(20252026, GameScope.All)).Single(t => t.Id == 21);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(regular.StandingsPoints, Is.EqualTo(1), "one regular-season overtime loss");
+            Assert.That(combined.GamesPlayed, Is.EqualTo(2), "the playoff game still counts as a game");
+            Assert.That(combined.StandingsPoints, Is.EqualTo(1),
+                "adding the playoff game must not inflate the standings total");
+        });
+    }
+
+    [Test]
+    public async Task Scope_decides_which_games_a_trend_counts()
+    {
+        var service = BuildService(RegularAndPlayoffOvertimeLosses());
+        await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+        await service.IngestRecentAsync(new DateOnly(2026, 5, 15), lookbackDays: 0);
+
+        var queries = new StatsQueryService(_db);
+
+        var regular = await queries.GetPlayerTrendAsync(101, 20252026, "goals", 1, GameScope.RegularSeason);
+        var playoffs = await queries.GetPlayerTrendAsync(101, 20252026, "goals", 1, GameScope.Playoffs);
+        var combined = await queries.GetPlayerTrendAsync(101, 20252026, "goals", 1, GameScope.All);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(regular!.Points, Has.Count.EqualTo(1));
+            Assert.That(playoffs!.Points, Has.Count.EqualTo(1));
+            Assert.That(combined!.Points, Has.Count.EqualTo(2), "combined counts both games");
+            Assert.That(combined.Total, Is.EqualTo(2));
+        });
+    }
+
+    [Test]
+    public async Task Scope_decides_which_games_a_leaderboard_counts()
+    {
+        var service = BuildService(RegularAndPlayoffOvertimeLosses());
+        await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+        await service.IngestRecentAsync(new DateOnly(2026, 5, 15), lookbackDays: 0);
+
+        var queries = new StatsQueryService(_db);
+
+        var regular = await queries.GetLeadersAsync(20252026, "points", 10, GameScope.RegularSeason);
+        var combined = await queries.GetLeadersAsync(20252026, "points", 10, GameScope.All);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(regular[0].GamesPlayed, Is.EqualTo(1));
+            Assert.That(combined[0].GamesPlayed, Is.EqualTo(2));
+            Assert.That(combined[0].Value, Is.EqualTo(regular[0].Value * 2));
+        });
+    }
+
+    [Test]
+    public async Task Season_summaries_report_the_regular_and_playoff_split()
+    {
+        var service = BuildService(RegularAndPlayoffOvertimeLosses());
+        await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+        await service.IngestRecentAsync(new DateOnly(2026, 5, 15), lookbackDays: 0);
+
+        var season = (await new StatsQueryService(_db).GetSeasonsAsync()).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(season.GameCount, Is.EqualTo(2));
+            Assert.That(season.RegularSeasonGames, Is.EqualTo(1));
+            Assert.That(season.PlayoffGames, Is.EqualTo(1));
         });
     }
 
