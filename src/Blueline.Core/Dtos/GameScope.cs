@@ -5,17 +5,20 @@ namespace Blueline.Core.Dtos;
 /// <summary>
 /// Which games a query counts. Every stat query takes one of these, so a page and its API
 /// equivalent can never disagree about what "the season" means.
+///
+/// The two never merge, deliberately. A combined scope existed and was removed: the regular
+/// season and the playoffs are scored differently enough that totalling them produces figures
+/// nobody quotes. Standings points, overtime losses and points percentage are all regular-season
+/// concepts, so a combined view had to hide three columns to avoid stating something false —
+/// and a combined game count sits beside a points total that ignores half those games.
 /// </summary>
 public enum GameScope
 {
     /// <summary>Regular season only — the default, and what every published stat line means.</summary>
     RegularSeason,
 
-    /// <summary>Playoff games only.</summary>
+    /// <summary>Playoff games only, numbered from a club's first playoff game rather than their 83rd.</summary>
     Playoffs,
-
-    /// <summary>Regular season and playoffs combined.</summary>
-    All,
 }
 
 public static class GameScopes
@@ -27,14 +30,12 @@ public static class GameScopes
     public static int[] GameTypes(this GameScope scope) => scope switch
     {
         GameScope.Playoffs => [Entities.GameTypes.Playoffs],
-        GameScope.All => [Entities.GameTypes.Regular, Entities.GameTypes.Playoffs],
         _ => [Entities.GameTypes.Regular],
     };
 
     public static string Label(this GameScope scope) => scope switch
     {
         GameScope.Playoffs => "Playoffs",
-        GameScope.All => "Regular season + playoffs",
         _ => "Regular season",
     };
 
@@ -42,7 +43,6 @@ public static class GameScopes
     public static string ShortLabel(this GameScope scope) => scope switch
     {
         GameScope.Playoffs => "Playoffs",
-        GameScope.All => "Combined",
         _ => "Regular",
     };
 
@@ -54,8 +54,15 @@ public static class GameScopes
 
     /// <summary>
     /// Parses a scope from a query string. Unrecognised values fall back to the regular season
-    /// rather than erroring, so a stale bookmark still renders something sensible.
+    /// rather than erroring, so a stale bookmark still renders something sensible — including
+    /// <c>?scope=All</c>, which this build no longer offers.
+    ///
+    /// <see cref="Enum.IsDefined{T}(T)"/> guards the numeric case: <see cref="Enum.TryParse{T}(string, bool, out T)"/>
+    /// also accepts digits and hands back whatever number it is given, defined or not, so
+    /// <c>?scope=7</c> would otherwise succeed and produce a scope no switch has an arm for.
     /// </summary>
     public static GameScope Parse(string? value) =>
-        Enum.TryParse<GameScope>(value, ignoreCase: true, out var scope) ? scope : GameScope.RegularSeason;
+        Enum.TryParse<GameScope>(value, ignoreCase: true, out var scope) && Enum.IsDefined(scope)
+            ? scope
+            : GameScope.RegularSeason;
 }

@@ -265,14 +265,14 @@ public class GoalieQueryTests : QueryFixture
 
         var regular = (await Queries.SearchGoaliesAsync(SeasonId, stat: "saves", scope: GameScope.RegularSeason)).Single();
         var playoffs = (await Queries.SearchGoaliesAsync(SeasonId, stat: "saves", scope: GameScope.Playoffs)).Single();
-        var all = (await Queries.SearchGoaliesAsync(SeasonId, stat: "saves", scope: GameScope.All)).Single();
 
         Assert.Multiple(() =>
         {
             Assert.That(regular.Saves, Is.EqualTo(20));
+            Assert.That(regular.SavePctg, Is.EqualTo(1.0).Within(1e-9), "20 saves on 20 shots");
             Assert.That(playoffs.Saves, Is.EqualTo(10));
-            Assert.That(all.Saves, Is.EqualTo(30));
-            Assert.That(all.SavePctg, Is.EqualTo(0.75).Within(1e-9), "30 saves on 40 shots");
+            Assert.That(playoffs.SavePctg, Is.EqualTo(0.5).Within(1e-9),
+                "10 saves on 20 shots, with the regular season's 20 left out entirely");
         });
     }
 }

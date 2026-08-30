@@ -8,8 +8,7 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 **Revised 2026-08-30 against the answers in `questions.md`.** Four answers changed this plan rather
 than merely confirming it, and they are the four `todo` items worth reading first:
 
-- **The combined regular-season + playoffs scope has to go** — 1.5. The toggle was built with three
-  options; the answer allows two.
+- **The combined regular-season + playoffs scope has gone** — 1.5, done.
 - **The ingestion trigger endpoint and the Refresh button have to go** — 2.6, which also raises a
   question the answer does not settle.
 - **The home page becomes a streaks dashboard and Leaders moves off `/`** — group 6. This is the
@@ -57,8 +56,9 @@ reliably, for relief appearances. Worth doing properly if you want a wins column
 
 ### 1.2 Make playoff games viewable — `done`
 
-Delivered. A `GameScope` (`RegularSeason` / `Playoffs` / `All`) threads through every query, the
-API takes it as `?scope=`, and a shared `ScopePicker` sits on all seven pages. The default is
+Delivered. A `GameScope` (`RegularSeason` / `Playoffs`, and at the time also `All`, removed later
+under 1.5) threads through every query, the API takes it as `?scope=`, and a shared `ScopePicker`
+sits on all seven pages. The default is
 configurable via `Display:DefaultGameScope` and stays `RegularSeason`, because that is what a
 published stat line means — nobody's "42 goals" silently includes playoff goals.
 `GetSeasonsAsync` now reports the regular/playoff split, so the Data page no longer shows 1,394
@@ -133,28 +133,36 @@ Still open: the rolling window remains "N games", so across a layoff a 10-game a
 more calendar time than its width on the date axis suggests. A days-based window would be a
 separate decision — and the answer to question 9 has now made that decision for us. See 1.6.
 
-### 1.5 Drop the combined scope — `todo`
+### 1.5 Drop the combined scope — `done`
 
-The answer to question 4 is a toggle that **never merges** regular season and playoffs. `GameScope`
-currently offers three options, and `All` merges them. It has to go.
+`GameScope.All` is gone. The toggle offers regular season or playoffs, and never merges them.
 
-Small but not trivial, because the scope threads through everything:
+Smaller than expected, because the scope was built as one enum threaded through every query rather
+than as a flag repeated per page. `ScopePicker` enumerates `GameScope` instead of listing options,
+so the control on all seven pages lost its third entry without being touched.
 
-- `GameScope.All` and its arms in `GameTypes()`, `Label()` and `ShortLabel()`.
-- `ScopePicker`, which renders one control on all seven pages.
-- `GameScopes.Parse` — a bookmarked `?scope=All` must keep rendering something rather than
-  erroring, and the existing fallback to `RegularSeason` already does exactly that.
-- Every test that asserts on combined totals, and the Data page's split counts.
+- **A bookmarked `?scope=All` still renders**, falling back to the regular season, which is what
+  `Parse` already did for anything unrecognised.
+- **`Parse` gained a defined-value check while it was open.** `Enum.TryParse` also accepts digits
+  and hands back whatever number it is given, so `?scope=7` previously parsed as a `GameScope` no
+  switch arm matches. It reached the same regular-season answer through every `_ =>` default, but
+  by accident rather than by decision.
+- **The tests that asserted on combined totals now assert the separation instead** — that a playoff
+  game never reaches a regular-season standings total, and that each game is counted once under one
+  scope only. That is the property worth pinning now.
 
-**Worth deleting for its own sake, not just to match the answer.** Combined is the scope that makes
-the columns lie: standings points, OTL and points percentage are all meaningless across playoff
-games, which is why 1.2 ended up hiding those columns whenever the scope included them. Removing
-the option removes the special case rather than papering over it.
+The second half of the answer — playoff charts numbered within the playoffs — **was already how it
+worked**, and now has a test. Rows are scope-filtered before `BuildPoints`, so the axis is an index
+into the filtered set: game 1 in playoff scope is a club's first playoff game, not their 83rd.
 
-The second half of the answer — playoff charts numbered within the playoffs themselves — **is
-already how it works**, and needs no change. Rows are scope-filtered before `BuildPoints` runs, so
-the x axis is an index into the filtered rows: game 1 in the playoff scope is a club's first playoff
-game, not their 83rd of the year. Worth a test that pins it, since nothing currently asserts it.
+**A UI test flaked while verifying this, and it was a real defect in the test.** After changing the
+stat, `Changing_the_stat_re_queries_and_repaints` waited for the stat tile to update and then read
+the chart directly. The tile is Blazor's own markup and updates when the query returns; the chart is
+rebuilt afterwards through JS interop. So the tile was never evidence the chart had caught up, and
+the read landed in the window where the old chart is destroyed and the new one does not yet exist —
+`WaitForChartAsync` exists precisely for that window. It failed roughly one run in three on this
+branch and not at all on `main`, which is what a timing change looks like rather than a regression:
+one fewer option to render is enough to move the race. Now polled; 4 consecutive full runs pass.
 
 ### 1.6 Add a days-based rolling window — `todo`
 

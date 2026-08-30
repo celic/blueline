@@ -233,7 +233,7 @@ public class IngestionTests
     }
 
     [Test]
-    public async Task A_combined_season_reports_only_the_regular_seasons_standings_points()
+    public async Task A_playoff_game_never_reaches_the_regular_seasons_standings_points()
     {
         var service = BuildService(RegularAndPlayoffOvertimeLosses());
         await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
@@ -241,14 +241,14 @@ public class IngestionTests
 
         var queries = new StatsQueryService(_db);
         var regular = (await queries.GetTeamsAsync(20252026, GameScope.RegularSeason)).Single(t => t.Id == 21);
-        var combined = (await queries.GetTeamsAsync(20252026, GameScope.All)).Single(t => t.Id == 21);
+        var playoffs = (await queries.GetTeamsAsync(20252026, GameScope.Playoffs)).Single(t => t.Id == 21);
 
         Assert.Multiple(() =>
         {
+            Assert.That(regular.GamesPlayed, Is.EqualTo(1));
             Assert.That(regular.StandingsPoints, Is.EqualTo(1), "one regular-season overtime loss");
-            Assert.That(combined.GamesPlayed, Is.EqualTo(2), "the playoff game still counts as a game");
-            Assert.That(combined.StandingsPoints, Is.EqualTo(1),
-                "adding the playoff game must not inflate the standings total");
+            Assert.That(playoffs.GamesPlayed, Is.EqualTo(1));
+            Assert.That(playoffs.StandingsPoints, Is.Zero, "the playoffs award none");
         });
     }
 
@@ -263,14 +263,15 @@ public class IngestionTests
 
         var regular = await queries.GetPlayerTrendAsync(101, 20252026, "goals", 1, GameScope.RegularSeason);
         var playoffs = await queries.GetPlayerTrendAsync(101, 20252026, "goals", 1, GameScope.Playoffs);
-        var combined = await queries.GetPlayerTrendAsync(101, 20252026, "goals", 1, GameScope.All);
 
         Assert.Multiple(() =>
         {
             Assert.That(regular!.Points, Has.Count.EqualTo(1));
+            Assert.That(regular.Total, Is.EqualTo(1));
             Assert.That(playoffs!.Points, Has.Count.EqualTo(1));
-            Assert.That(combined!.Points, Has.Count.EqualTo(2), "combined counts both games");
-            Assert.That(combined.Total, Is.EqualTo(2));
+            Assert.That(playoffs.Total, Is.EqualTo(1));
+            Assert.That(playoffs.Points[0].GameNumber, Is.EqualTo(1),
+                "a playoff chart numbers from a club's first playoff game, not their 83rd");
         });
     }
 
@@ -284,13 +285,14 @@ public class IngestionTests
         var queries = new StatsQueryService(_db);
 
         var regular = await queries.GetLeadersAsync(20252026, "points", 10, GameScope.RegularSeason);
-        var combined = await queries.GetLeadersAsync(20252026, "points", 10, GameScope.All);
+        var playoffs = await queries.GetLeadersAsync(20252026, "points", 10, GameScope.Playoffs);
 
         Assert.Multiple(() =>
         {
             Assert.That(regular[0].GamesPlayed, Is.EqualTo(1));
-            Assert.That(combined[0].GamesPlayed, Is.EqualTo(2));
-            Assert.That(combined[0].Value, Is.EqualTo(regular[0].Value * 2));
+            Assert.That(playoffs[0].GamesPlayed, Is.EqualTo(1));
+            Assert.That(playoffs[0].Value, Is.EqualTo(regular[0].Value),
+                "each game is counted once, under one scope only");
         });
     }
 

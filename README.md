@@ -36,7 +36,8 @@ with no warnings.
 - **A date or game-number x axis.** Game number compares like for like; the date axis spaces
   games by when they were actually played, so an injury layoff or the gap between playoff rounds
   shows up instead of being flattened away.
-- **A games filter** on every page — regular season, playoffs, or both combined. The default is
+- **A games filter** on every page — regular season or playoffs, never merged, because the two
+  are scored differently and a combined total is a figure nobody quotes. The default is
   configurable via `Display:DefaultGameScope`, and the API takes the same choice as `?scope=`.
 - **A JSON API** at `/api` serving the same data.
 - **Daily ingestion** that pulls new games automatically and re-reads recent dates so the
@@ -272,8 +273,9 @@ strain. Everything goes through EF Core, so moving to PostgreSQL is a provider s
 | `GET /health/ready` | Readiness: is there data to serve, and is ingestion keeping up |
 | `POST /api/ingestion/run?days=` | Run ingestion now |
 
-Every stat endpoint also takes `?scope=RegularSeason|Playoffs|All`; an unrecognised value falls
-back to the regular season rather than erroring, so a stale bookmark still renders.
+Every stat endpoint also takes `?scope=RegularSeason|Playoffs`; an unrecognised value falls
+back to the regular season rather than erroring, so a stale bookmark still renders — including
+`?scope=All`, which earlier builds accepted.
 
 `season` defaults to the most recent season stored. An OpenAPI document is served at
 `/openapi/v1.json` in development.

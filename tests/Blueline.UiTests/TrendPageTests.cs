@@ -44,7 +44,12 @@ public class TrendPageTests : BluelinePageTest
 
         // One hit a game rather than three points.
         await Expect(Page.Locator(".stat-row .value").First).ToHaveTextAsync("10");
-        Assert.That(await ReadChartAsync<double>("chart.data.datasets[0].data.at(-1)"), Is.EqualTo(10));
+
+        // Polled rather than read outright. The tiles are Blazor's own markup and update as soon
+        // as the query returns, while the chart is rebuilt afterwards through JS interop — so the
+        // tile reading 10 is not evidence the chart has caught up, and a direct read lands in the
+        // window where the old chart is destroyed and the new one does not exist yet.
+        await WaitForChartAsync("chart.data.datasets[0].data.at(-1) === 10");
         AssertNoConsoleErrors();
     }
 
