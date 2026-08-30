@@ -216,10 +216,35 @@ Verified end to end by deleting a real game from the database: reconcile reporte
 games need ingesting" and restored the game with all 36 skater lines, 4 goalie lines and 2 team
 lines.
 
-### 2.4 Add a health endpoint — `todo`
+### 2.4 Add a health endpoint — `done`
 
-No `AddHealthChecks`. Most hosts want a liveness URL and will restart or mark the app unhealthy
-without one. `/health` returning database reachability and last successful ingestion time.
+Two endpoints rather than one, because the distinction prevents a specific disaster.
+
+- **`/health`** — liveness. Only asks whether the database can be reached. Answers "is this
+  process worth keeping".
+- **`/health/ready`** — readiness. Also asks whether there is anything to serve and whether
+  ingestion is keeping up. Answers "is it worth sending traffic here yet".
+
+**Why they are separate.** A fresh deployment spends several minutes seeding its first season, so
+a single endpoint reporting "no data" would be read as unhealthy, the host would restart the
+container, and the seed would begin again — forever, while looking merely slow. Liveness stays
+healthy throughout.
+
+A failed ingestion run reports **Degraded**, not Unhealthy, because the site still serves
+everything already stored. So does a run that could not read some games, and that report names
+`reconcile` as the remedy rather than leaving someone to work it out. Degraded still returns 200,
+so a probe will not act on it while a human can still see it.
+
+The response is JSON per check with its description and data — games stored, last run kind,
+status, completion time and failed count — since the framework default returns the bare word
+"Healthy", which is enough for a probe and useless to a person.
+
+Verified against the running app: both return 200 with the expected detail.
+
+One thing to watch when 3.1 lands: `UseHttpsRedirection` runs before endpoint routing, so it
+would redirect a plain-HTTP probe. In a container with TLS terminating upstream no HTTPS port is
+configured and it does not redirect, which is why this works today — but a host that does
+configure one needs checking.
 
 ### 2.5 Browser-driven UI tests — `todo`
 

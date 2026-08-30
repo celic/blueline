@@ -2,6 +2,7 @@ using Blueline.Data;
 using Blueline.Ingestion;
 using Blueline.Web.Api;
 using Blueline.Web.Components;
+using Blueline.Web.Health;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +14,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddBluelineCore(builder.Configuration);
 builder.Services.AddBluelineDailyIngestion();
 builder.Services.AddOpenApi();
+builder.Services.AddBluelineHealthChecks();
 
 // Per-call HTTP and SQL logs would drown out everything else during a backfill.
 builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
@@ -46,6 +48,7 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapStatsApi();
+app.MapBluelineHealthChecks();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

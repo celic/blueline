@@ -173,6 +173,8 @@ strain. Everything goes through EF Core, so moving to PostgreSQL is a provider s
 | `GET /api/teams/{id}/trend?season=&stat=&window=` | A team's pace |
 | `GET /api/leaders?season=&stat=&take=` | Season leaders |
 | `GET /api/ingestion/status` | What is stored and how the last run went |
+| `GET /health` | Liveness: is the database reachable |
+| `GET /health/ready` | Readiness: is there data to serve, and is ingestion keeping up |
 | `POST /api/ingestion/run?days=` | Run ingestion now |
 
 Every stat endpoint also takes `?scope=RegularSeason|Playoffs|All`; an unrecognised value falls
