@@ -1,0 +1,23 @@
+# Build output and local state — never wanted in the build context.
+**/bin/
+**/obj/
+**/*.user
+
+# Local databases. Copying one in would ship someone's machine state.
+*.db
+*.db-shm
+*.db-wal
+
+.git/
+.github/
+.idea/
+.vs/
+.claude/
+
+docs/
+README.md
+tests/
+
+Dockerfile
+.dockerignore
+docker-compose.yml

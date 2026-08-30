@@ -3,6 +3,7 @@ using Blueline.Ingestion;
 using Blueline.Web.Api;
 using Blueline.Web.Components;
 using Blueline.Web.Health;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,7 +23,25 @@ builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogL
 // The resilience pipeline logs every attempt, including the successes.
 builder.Logging.AddFilter("Polly", LogLevel.Warning);
 
+// Behind a reverse proxy the original scheme and client address arrive as headers. Opt-in,
+// because trusting these when nothing is in front of the app would let a caller spoof them.
+var useForwardedHeaders = builder.Configuration.GetValue("Blueline:UseForwardedHeaders", false);
+if (useForwardedHeaders)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+        // The proxy is inside the host's own network and its address is not known ahead of time,
+        // which is the normal situation for a container platform.
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
+
 var app = builder.Build();
+
+if (useForwardedHeaders) app.UseForwardedHeaders();
 
 // Apply migrations at startup so a fresh deployment comes up with a usable schema.
 using (var scope = app.Services.CreateScope())

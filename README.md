@@ -79,6 +79,75 @@ Browser tests drive the real site through Playwright. They need the browser down
 tests/Blueline.UiTests/bin/Debug/net10.0/playwright.ps1 install chromium
 ```
 
+## Running it in Docker
+
+```bash
+docker compose up --build
+```
+
+The site is then on `http://localhost:8080`.
+
+The image publishes the site and the CLI side by side, so one image runs either. That is what
+lets you seed, reconcile or inspect the very same volume the site is using:
+
+```bash
+docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll status
+```
+
+### How data gets into the database
+
+The image ships with an empty database. There are three ways to fill it, and one setting that
+matters more than the choice.
+
+**1. Let it seed itself (the default).** On startup against an empty database the app loads the
+season named by `Ingestion:SeedSeasonId` — about 1,400 games and 1,500 requests, taking several
+minutes. Nothing to do but wait. During that time `/health` reports healthy while `/health/ready`
+reports not-ready, which is deliberate: an orchestrator probing liveness will leave the container
+alone to finish, and the site starts serving as soon as there is something to serve.
+
+**2. Seed deliberately.** Set `Ingestion__SeedSeasonId=0` so the app never loads anything on its
+own, then run the loader against the volume when you choose:
+
+```bash
+docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll backfill 20252026
+```
+
+Slower to set up, but the load is a visible step that can fail, be watched and be retried, rather
+than something happening invisibly inside a booting container. Worth preferring if the host has a
+short deploy timeout or a tight CPU allowance.
+
+**3. Restore a database you already have.** The whole thing is one SQLite file, so copying a
+known-good `blueline.db` into the volume is a complete restore — and much kinder to the league's
+API than re-ingesting. Copy it in before the first start.
+
+**The setting that matters: the volume must genuinely persist.** Seeding is triggered by finding
+an *empty database*, not by a first-run flag. If storage is thrown away on restart — the container
+filesystem with no volume, or a host that resets disk on redeploy — the app re-ingests the entire
+season every single time. It will not look like a fault; it will look like the site is slow to
+start, while quietly making 1,500 requests on every boot. Before anything else, restart the
+container once and check that `docker compose run --rm --entrypoint dotnet blueline
+Blueline.Cli.dll status` still reports the games it reported before.
+
+### Keeping it current
+
+The daily job takes over once the database has data, re-reading a short window each day so late
+stat corrections are picked up. If the host was asleep for longer than that window, fill the gap:
+
+```bash
+docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll reconcile 20252026
+```
+
+### Deployment notes
+
+| Setting | Why |
+| --- | --- |
+| `BLUELINE_DATA_DIR` | Already `/data` in the image; point the volume there |
+| `Blueline__UseForwardedHeaders` | Set `true` behind a proxy that terminates TLS, so the app sees the original scheme and client address. Off by default, since trusting those headers with nothing in front would let a caller spoof them |
+| `Ingestion__SeedSeasonId` | `0` disables self-seeding |
+
+Blazor Server holds a WebSocket per visitor, so the host must allow long-lived connections. Past a
+single instance it would need sticky sessions or a Redis backplane; one instance is assumed here.
+
 ## Where the rest is written down
 
 | Document | What's in it |

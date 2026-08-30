@@ -261,18 +261,34 @@ Note for CI: `playwright.ps1 install chromium` must run once, and it downloads r
 
 ## 3. Deployment
 
-### 3.1 Dockerfile and deployment notes — `todo`
+### 3.1 Dockerfile and deployment notes — `done`
 
-No `Dockerfile` or `.dockerignore` yet.
+Multi-stage build, a `.dockerignore`, and a `docker-compose.yml` that demonstrates the volume.
+Forwarded-headers support added to the app, opt-in via `Blueline:UseForwardedHeaders`, since
+trusting those headers with nothing in front would let a caller spoof the client address.
 
-- Multi-stage build on the .NET 10 SDK / ASP.NET runtime images.
-- Set `BLUELINE_DATA_DIR` to a mounted volume path — the resolver in
-  `src/Blueline.Data/BluelineDbPath.cs` already handles this, so no code change is needed.
-- Blazor Server holds a WebSocket per visitor: the host must support long-lived connections, and
-  if it ever scales past one instance it needs sticky sessions or a Redis backplane.
-- Add forwarded-headers handling for running behind a proxy, and confirm
-  `UseHttpsRedirection` behaves correctly when TLS terminates upstream (it currently logs
-  "Failed to determine the https port" under the http-only profile).
+**Not built or run.** Docker's daemon is not available on this machine, so the image is unverified.
+What was checked is the part most likely to break: both projects publish cleanly into one
+directory, with `wwwroot` and the static asset manifest intact, and the app boots and serves with
+forwarded headers enabled.
+
+Two decisions worth recording:
+
+- **The image carries the CLI as well as the site**, published side by side. One image can
+  therefore seed, reconcile or report status against the very same volume the site is using,
+  without a second image or an SDK in production.
+- **`HEALTHCHECK` targets `/health`, not `/health/ready`.** This is the 2.4 split earning its
+  keep: a first run spends several minutes loading a season, readiness correctly says "not yet",
+  and probing that here would kill the container mid-load and start it over forever.
+
+How data reaches the database is documented in the README, with three routes — self-seed on first
+run, an explicit `backfill` through the CLI, or restoring a `blueline.db` — and the warning that
+outranks the choice: seeding fires on an *empty database*, not a first-run flag, so storage that
+does not survive a restart re-ingests ~1,400 games on every boot while merely looking slow.
+
+Still to confirm once a daemon is available: that the image builds, that a non-root `app` user can
+write to a mounted volume, and the behaviour of `UseHttpsRedirection` behind a TLS-terminating
+proxy.
 
 ### 3.2 Decide and set up the host — `todo`
 

@@ -1,0 +1,23 @@
+services:
+  blueline:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      # A named volume, not a bind mount or the container filesystem. This is
+      # the setting that matters most: the app loads a full season whenever it
+      # finds an empty database, so storage that does not survive a restart
+      # means re-ingesting ~1,400 games every time, which looks merely like a
+      # slow start while hammering the league's API.
+      - blueline-data:/data
+    environment:
+      # Season loaded on first run against an empty database. Set to 0 to
+      # disable and seed deliberately instead — see the README.
+      Ingestion__SeedSeasonId: "20252026"
+      Ingestion__DailyJobEnabled: "true"
+      # Only meaningful behind a reverse proxy that terminates TLS.
+      Blueline__UseForwardedHeaders: "false"
+    restart: unless-stopped
+
+volumes:
+  blueline-data:
