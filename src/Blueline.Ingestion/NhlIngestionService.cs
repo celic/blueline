@@ -90,7 +90,7 @@ public class NhlIngestionService(
     }
 
     /// <summary>Regular season and playoffs only, and only once the game is actually over.</summary>
-    private static bool IsIngestableGame(ScheduleGame g) =>
+    internal static bool IsIngestableGame(ScheduleGame g) =>
         g.GameType is GameTypes.Regular or GameTypes.Playoffs && g.GameState is "OFF" or "FINAL";
 
     private async Task<List<string>> SyncTeamsAsync(int seasonId, CancellationToken ct)
@@ -360,10 +360,10 @@ public class NhlIngestionService(
     /// True while a player still carries the placeholder taken from a boxscore, where the first
     /// name is an initial such as "D." rather than "Daniil".
     /// </summary>
-    private static bool NeedsRealName(Player player) =>
+    internal static bool NeedsRealName(Player player) =>
         string.IsNullOrWhiteSpace(player.FirstName) || player.FirstName.EndsWith('.');
 
-    private static (string First, string Last) SplitBoxscoreName(string? name)
+    internal static (string First, string Last) SplitBoxscoreName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return ("", "");
         var idx = name.IndexOf(' ');

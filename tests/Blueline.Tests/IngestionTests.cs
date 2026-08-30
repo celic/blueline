@@ -312,6 +312,73 @@ public class IngestionTests
     }
 
     [Test]
+    public async Task Full_names_replace_the_abbreviations_the_box_score_carries()
+    {
+        var stub = TwoGamesSharingATeam()
+            .Add("club-stats/HME/20252026/2", StubNhlApi.ClubStats(
+                (101, "Hometown", "Forward", "L"), (201, "Hometown", "Goalie", "G")))
+            .Add("club-stats/AWY/20252026/2", StubNhlApi.ClubStats(
+                (100, "Awayville", "Forward", "C"), (200, "Awayville", "Goalie", "G")));
+
+        await BuildService(stub).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        var forward = await _db.Players.SingleAsync(p => p.Id == 101);
+        var goalie = await _db.Players.SingleAsync(p => p.Id == 201);
+
+        Assert.Multiple(() =>
+        {
+            // The box score only supplied "H. Forward".
+            Assert.That(forward.FullName, Is.EqualTo("Hometown Forward"));
+            Assert.That(forward.HeadshotUrl, Is.EqualTo("https://example.test/101.png"));
+            Assert.That(goalie.FullName, Is.EqualTo("Hometown Goalie"));
+            Assert.That(goalie.Position, Is.EqualTo("G"));
+        });
+    }
+
+    [Test]
+    public async Task A_player_missing_from_the_roster_keeps_their_abbreviated_name()
+    {
+        // Someone who played once and was gone before the end-of-season roster was published.
+        var stub = TwoGamesSharingATeam()
+            .Add("club-stats/HME/20252026/2", StubNhlApi.ClubStats((101, "Hometown", "Forward", "L")));
+
+        await BuildService(stub).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        var unresolved = await _db.Players.SingleAsync(p => p.Id == 100);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(unresolved.LastName, Is.EqualTo("Forward"), "their stats are still correct");
+            Assert.That(NhlIngestionService.NeedsRealName(unresolved), Is.True, "only the display name is short");
+        });
+    }
+
+    [Test]
+    public async Task The_roster_lookup_is_skipped_once_every_player_has_a_real_name()
+    {
+        var stub = TwoGamesSharingATeam()
+            .Add("club-stats/HME/20252026/2", StubNhlApi.ClubStats(
+                (101, "Hometown", "Forward", "L"), (201, "Hometown", "Goalie", "G")))
+            .Add("club-stats/AWY/20252026/2", StubNhlApi.ClubStats(
+                (100, "Awayville", "Forward", "C"), (200, "Awayville", "Goalie", "G")))
+            .Add("club-stats/OTH/20252026/2", StubNhlApi.ClubStats());
+
+        var service = BuildService(stub);
+        await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        var callsAfterFirstPass = stub.RequestedPaths.Count(p => p.StartsWith("club-stats"));
+        await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+        var callsAfterSecondPass = stub.RequestedPaths.Count(p => p.StartsWith("club-stats"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(callsAfterFirstPass, Is.GreaterThan(0), "the first pass has names to resolve");
+            Assert.That(callsAfterSecondPass, Is.EqualTo(callsAfterFirstPass),
+                "a daily run over already-named players must not re-fetch every club roster");
+        });
+    }
+
+    [Test]
     public async Task Trends_read_back_the_games_that_were_ingested()
     {
         await BuildService(TwoGamesSharingATeam()).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);

@@ -75,6 +75,7 @@ public class StatsQueryService(BluelineDbContext db)
             })
             .OrderByDescending(g => g.Points)
             .ThenByDescending(g => g.Goals)
+            .ThenBy(g => g.PlayerId)
             .Take(take)
             .ToListAsync(ct);
 
@@ -173,7 +174,7 @@ public class StatsQueryService(BluelineDbContext db)
             ? summaries.OrderBy(s => GoalieStatValue(s, definition.Key))
             : summaries.OrderByDescending(s => GoalieStatValue(s, definition.Key));
 
-        return ordered.ThenByDescending(s => s.MinutesPlayed).Take(take).ToList();
+        return ordered.ThenByDescending(s => s.MinutesPlayed).ThenBy(s => s.Id).Take(take).ToList();
     }
 
     /// <summary>
@@ -283,6 +284,7 @@ public class StatsQueryService(BluelineDbContext db)
             .Where(r => teams.ContainsKey(r.TeamId))
             .OrderByDescending(r => r.Points)
             .ThenByDescending(r => r.Wins)
+            .ThenBy(r => r.TeamId)
             .Select(r =>
             {
                 var t = teams[r.TeamId];
@@ -414,6 +416,10 @@ public class StatsQueryService(BluelineDbContext db)
 
         var totals = await aggregated
             .OrderByDescending(t => t.Total)
+            // Ties are broken by id so that two identical requests rank players identically;
+            // without it the database is free to return tied rows in any order, which also
+            // decides arbitrarily who makes the cut at the Take boundary.
+            .ThenBy(t => t.PlayerId)
             .Take(take)
             .ToListAsync(ct);
 

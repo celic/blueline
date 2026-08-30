@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\src\Blueline.Core\Blueline.Core.csproj" />
     <ProjectReference Include="..\..\src\Blueline.Data\Blueline.Data.csproj" />
     <ProjectReference Include="..\..\src\Blueline.Ingestion\Blueline.Ingestion.csproj" />
+    <ProjectReference Include="..\..\src\Blueline.Web\Blueline.Web.csproj" />
   </ItemGroup>
 
 </Project>

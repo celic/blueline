@@ -105,11 +105,17 @@ public class DailyIngestionWorker(
         }
     }
 
-    private TimeSpan TimeUntilNextRun(TimeOnly runTimeUtc)
+    private TimeSpan TimeUntilNextRun(TimeOnly runTimeUtc) =>
+        TimeUntilNextRun(time.GetUtcNow().UtcDateTime, runTimeUtc);
+
+    /// <summary>
+    /// How long until the next occurrence of the daily run time. Today's slot if it has not yet
+    /// passed, otherwise tomorrow's. Pure so the scheduling arithmetic can be tested directly.
+    /// </summary>
+    internal static TimeSpan TimeUntilNextRun(DateTime nowUtc, TimeOnly runTimeUtc)
     {
-        var now = time.GetUtcNow().UtcDateTime;
-        var next = now.Date + runTimeUtc.ToTimeSpan();
-        if (next <= now) next = next.AddDays(1);
-        return next - now;
+        var next = nowUtc.Date + runTimeUtc.ToTimeSpan();
+        if (next <= nowUtc) next = next.AddDays(1);
+        return next - nowUtc;
     }
 }

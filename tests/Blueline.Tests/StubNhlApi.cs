@@ -85,6 +85,26 @@ public class StubNhlApi : HttpMessageHandler
         }
         """;
 
+    /// <summary>
+    /// A club's season roster, which is where full first and last names come from. Box scores
+    /// only ever carry an abbreviated "A. Forward".
+    /// </summary>
+    public static string ClubStats(params (int PlayerId, string First, string Last, string Position)[] players)
+    {
+        static string Entry((int PlayerId, string First, string Last, string Position) p) => $$"""
+            { "playerId": {{p.PlayerId}}, "firstName": { "default": "{{p.First}}" },
+              "lastName": { "default": "{{p.Last}}" }, "positionCode": "{{p.Position}}",
+              "headshot": "https://example.test/{{p.PlayerId}}.png" }
+            """;
+
+        var skaters = players.Where(p => p.Position != "G").Select(Entry);
+        var goalies = players.Where(p => p.Position == "G").Select(Entry);
+
+        return $$"""
+            { "skaters": [{{string.Join(",", skaters)}}], "goalies": [{{string.Join(",", goalies)}}] }
+            """;
+    }
+
     /// <summary>The shape of /v1/score/{date}, where abbrev is a bare string rather than an object.</summary>
     public static string Score(string date, params long[] gameIds) => ScoreOfType(date, 2, gameIds);
 
