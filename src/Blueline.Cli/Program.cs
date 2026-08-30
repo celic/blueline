@@ -75,6 +75,40 @@ switch (command)
         return 0;
     }
 
+    case "export":
+    {
+        if (args.Length < 2 || !int.TryParse(args[1], out var seasonId))
+        {
+            Console.Error.WriteLine("Usage: export <seasonId> [file]   e.g. export 20252026 seed/20252026.blueline.gz");
+            return 1;
+        }
+
+        var file = args.Length > 2 ? args[2] : $"{seasonId}.blueline.gz";
+        var archive = services.GetRequiredService<SeasonArchive>();
+        var summary = await archive.ExportAsync(seasonId, file);
+
+        Console.WriteLine($"Exported {summary.TotalRows} rows to {file} " +
+                          $"({new FileInfo(file).Length / 1e6:F1} MB).");
+        return 0;
+    }
+
+    case "import":
+    {
+        if (args.Length < 2)
+        {
+            Console.Error.WriteLine("Usage: import <file>   e.g. import seed/20252026.blueline.gz");
+            return 1;
+        }
+
+        var archive = services.GetRequiredService<SeasonArchive>();
+        var summary = await archive.ImportAsync(args[1]);
+
+        Console.WriteLine($"Imported season {StatsQueryService.FormatSeason(summary.SeasonId)}: " +
+                          $"{summary.Games} games, {summary.SkaterLines} skater lines, " +
+                          $"{summary.GoalieLines} goalie lines.");
+        return 0;
+    }
+
     case "status":
     {
         var queries = services.GetRequiredService<StatsQueryService>();
@@ -99,6 +133,8 @@ switch (command)
               backfill <seasonId>   Load a full season, e.g. backfill 20252026
               daily [days] [date]   Re-read the N days ending on date (defaults: 3 days, today)
               reconcile <seasonId>  Ingest any games the league lists but we do not have
+              export <seasonId> [f] Write a season to a portable archive file
+              import <file>         Load a season archive, no API calls needed
               status                Show what is currently stored
             """);
         return command is null ? 0 : 1;

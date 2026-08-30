@@ -66,7 +66,23 @@ public class DailyIngestionWorker(
             var db = scope.ServiceProvider.GetRequiredService<BluelineDbContext>();
             if (await db.Games.AnyAsync(ct)) return;
 
-            logger.LogInformation("Database is empty; seeding season {Season}.", settings.SeedSeasonId);
+            // An archive is preferred over the league API: it takes seconds instead of minutes
+            // and costs no requests at all. Ingestion is the fallback for when none is shipped.
+            var archivePath = ResolveSeedArchive(settings);
+            if (archivePath is not null)
+            {
+                logger.LogInformation("Database is empty; loading the season archive at {Path}.", archivePath);
+
+                var archive = scope.ServiceProvider.GetRequiredService<SeasonArchive>();
+                var imported = await archive.ImportAsync(archivePath, ct);
+
+                logger.LogInformation("Seeded {Count} games from the archive.", imported.Games);
+                return;
+            }
+
+            logger.LogInformation(
+                "Database is empty and no archive was found; ingesting season {Season} from the league API. " +
+                "This takes several minutes.", settings.SeedSeasonId);
 
             var ingestion = scope.ServiceProvider.GetRequiredService<NhlIngestionService>();
             var count = await ingestion.BackfillSeasonAsync(settings.SeedSeasonId, ct);
@@ -81,6 +97,24 @@ public class DailyIngestionWorker(
         {
             logger.LogError(ex, "Seeding failed. Load a season by hand with the CLI, or restart to retry.");
         }
+    }
+
+    /// <summary>
+    /// Locates the archive to seed from, or null to fall back to ingesting. An explicitly empty
+    /// setting means "never use an archive", which is distinct from leaving it unset.
+    /// </summary>
+    internal static string? ResolveSeedArchive(IngestionOptions settings)
+    {
+        if (settings.SeedArchivePath is { Length: 0 }) return null;
+
+        var configured = settings.SeedArchivePath
+                         ?? Path.Combine("seed", $"{settings.SeedSeasonId}.blueline.gz");
+
+        var path = Path.IsPathRooted(configured)
+            ? configured
+            : Path.Combine(AppContext.BaseDirectory, configured);
+
+        return File.Exists(path) ? path : null;
     }
 
     private async Task RunOnceAsync(IngestionOptions settings, CancellationToken ct)

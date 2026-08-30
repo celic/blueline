@@ -24,4 +24,12 @@ public class IngestionOptions
 
     /// <summary>Season the site seeds itself with when the database is empty. Zero disables seeding.</summary>
     public int SeedSeasonId { get; set; } = 20252026;
+
+    /// <summary>
+    /// Archive to load when the database is empty, in preference to re-ingesting from the league.
+    /// Relative paths resolve against the application directory. Leave unset to use the
+    /// convention <c>seed/{SeedSeasonId}.blueline.gz</c>; set it to an empty string to ignore any
+    /// archive and always ingest.
+    /// </summary>
+    public string? SeedArchivePath { get; set; }
 }

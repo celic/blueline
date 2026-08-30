@@ -23,6 +23,7 @@ public static class ServiceCollectionExtensions
             // Without this, the background ingestion job's writes block page reads.
             .AddInterceptors(new SqliteConnectionInterceptor()));
         services.AddScoped<StatsQueryService>();
+        services.AddScoped<SeasonArchive>();
         services.AddScoped<NhlIngestionService>();
 
         services.Configure<IngestionOptions>(configuration.GetSection(IngestionOptions.SectionName));

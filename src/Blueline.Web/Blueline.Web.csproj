@@ -17,4 +17,10 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
+
+  <!-- The season archive ships with the app so a fresh database can be filled without
+       touching the league's API. -->
+  <ItemGroup>
+    <Content Include="..\..\seed\*.blueline.gz" Link="seed\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

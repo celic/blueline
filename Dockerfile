@@ -16,6 +16,7 @@ COPY src/Blueline.Cli/Blueline.Cli.csproj        src/Blueline.Cli/
 RUN dotnet restore src/Blueline.Web/Blueline.Web.csproj \
  && dotnet restore src/Blueline.Cli/Blueline.Cli.csproj
 
+COPY seed/ seed/
 COPY src/ src/
 
 # The site and the loader are published side by side into one directory, so a

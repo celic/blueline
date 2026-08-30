@@ -290,6 +290,27 @@ Still to confirm once a daemon is available: that the image builds, that a non-r
 write to a mounted volume, and the behaviour of `UseHttpsRedirection` behind a TLS-terminating
 proxy.
 
+### 3.4 Ship seasons as installable archives — `done`
+
+`export` and `import` in the CLI, and `seed/20252026.blueline.gz` committed alongside the code:
+61,035 rows in 941 KB, 18% the size of the database it came from. The image carries it, and an
+empty database now loads it in seconds rather than spending several minutes and ~1,500 requests
+rebuilding data that has not changed since the season ended. Ingestion remains the fallback when
+no archive is present.
+
+- **Gzipped JSON Lines, not a copy of the SQLite file.** A file copy would be smaller and simpler
+  but would tie the archive to SQLite, and the connection string is deliberately overridable so a
+  deployment can change provider. Rows go through the model, so an archive taken from SQLite
+  loads into anything EF Core supports. Line-per-record keeps both ends streaming.
+- **A dacpac was the original suggestion**, but that is SQL Server specific and schema-oriented;
+  the schema here already travels as EF migrations. What was missing was the data.
+- **The import is one transaction.** Found by measuring rather than reasoning: readiness first
+  went healthy three seconds into a boot, while the site served leaderboards showing Jack Eichel
+  on 16 points. Rows arrive in dependency order, so games land before the stat lines that
+  reference them and anything computed in between is wrong rather than merely thin. Atomic
+  import also means a failure leaves nothing behind, instead of stranding a partial season that
+  the empty-database check would take for real data.
+
 ### 3.2 Decide and set up the host — `todo`
 
 Depends on a decision — see `questions.md`. Free tiers shift, so verify current terms before

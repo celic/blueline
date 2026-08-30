@@ -65,6 +65,8 @@ Other CLI commands:
 | `backfill <seasonId>` | Load a full season, e.g. `backfill 20252026` |
 | `daily [days] [date]` | Re-read the N days ending on a date (default 3 days, today) |
 | `reconcile <seasonId>` | Ingest any games the league lists but the database is missing |
+| `export <seasonId> [file]` | Write a season to a portable archive |
+| `import <file>` | Load a season archive, without any API calls |
 | `status` | Show what is stored and how the last run went |
 
 Tests:
@@ -96,37 +98,39 @@ docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll status
 
 ### How data gets into the database
 
-The image ships with an empty database. There are three ways to fill it, and one setting that
-matters more than the choice.
+**By default, from the archive that ships in the image — no API calls, a few seconds.**
 
-**1. Let it seed itself (the default).** On startup against an empty database the app loads the
-season named by `Ingestion:SeedSeasonId` — about 1,400 games and 1,500 requests, taking several
-minutes. Nothing to do but wait. During that time `/health` reports healthy while `/health/ready`
-reports not-ready, which is deliberate: an orchestrator probing liveness will leave the container
-alone to finish, and the site starts serving as soon as there is something to serve.
+`seed/20252026.blueline.gz` is a compressed export of the 2025-26 season: 61,035 rows in 941 KB.
+On startup against an empty database the app loads it and starts serving. Re-ingesting the same
+season from the league would take several minutes and about 1,500 requests to produce identical
+data.
 
-**2. Seed deliberately.** Set `Ingestion__SeedSeasonId=0` so the app never loads anything on its
-own, then run the loader against the volume when you choose:
+The import runs in a single transaction, so the site serves nothing until the whole season has
+landed. That matters more than it sounds: rows arrive in dependency order, so a partly applied
+import is not merely incomplete but wrong — leaderboards built from games whose stat lines have
+not arrived yet report the wrong leaders. It also means an interrupted import leaves no trace,
+rather than stranding a partial season that the empty-database check would mistake for real data.
 
-```bash
-docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll backfill 20252026
-```
+If no archive is present the app falls back to ingesting from the league API, as before.
 
-Slower to set up, but the load is a visible step that can fail, be watched and be retried, rather
-than something happening invisibly inside a booting container. Worth preferring if the host has a
-short deploy timeout or a tight CPU allowance.
+Other routes:
 
-**3. Restore a database you already have.** The whole thing is one SQLite file, so copying a
-known-good `blueline.db` into the volume is a complete restore — and much kinder to the league's
-API than re-ingesting. Copy it in before the first start.
+| What | How |
+| --- | --- |
+| Load an archive by hand | `docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll import seed/20252026.blueline.gz` |
+| Make an archive of a season you have | `dotnet run --project src/Blueline.Cli -- export 20252026 seed/20252026.blueline.gz` |
+| Ingest from the league instead | Set `Ingestion__SeedArchivePath=""` to ignore any archive |
+| Load nothing at all | Set `Ingestion__SeedSeasonId=0` |
 
-**The setting that matters: the volume must genuinely persist.** Seeding is triggered by finding
-an *empty database*, not by a first-run flag. If storage is thrown away on restart — the container
-filesystem with no volume, or a host that resets disk on redeploy — the app re-ingests the entire
-season every single time. It will not look like a fault; it will look like the site is slow to
-start, while quietly making 1,500 requests on every boot. Before anything else, restart the
-container once and check that `docker compose run --rm --entrypoint dotnet blueline
-Blueline.Cli.dll status` still reports the games it reported before.
+Archives are portable rather than a copy of the database file: rows go through the model, so one
+taken from SQLite loads into any provider EF Core supports. Importing is idempotent, so running it
+twice, or over a season already present, converges instead of duplicating.
+
+**The setting that still matters most: the volume must genuinely persist.** Seeding is triggered
+by finding an *empty database*, not by a first-run flag. The archive makes a repeat far cheaper
+than it used to be — seconds instead of minutes, and no requests at all — but storage that is
+thrown away on restart still means rebuilding the database on every boot. Restart once and check
+`status` reports the same games before trusting anything else.
 
 ### Keeping it current
 
