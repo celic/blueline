@@ -60,10 +60,12 @@ else
         {
             <div class="field">
                 <label for="window">Rolling window</label>
-                <select id="window" value="@_window" @onchange="OnWindowChanged">
-                    @foreach (var w in new[] { 5, 10, 15, 20 })
+                @* Both units in one control: they answer the same question, measured
+                   differently, and a second dropdown would imply otherwise. *@
+                <select id="window" value="@_window.Token" @onchange="OnWindowChanged">
+                    @foreach (var w in RollingWindow.Choices)
                     {
-                        <option value="@w">@w games</option>
+                        <option value="@w.Token">@w.OptionLabel</option>
                     }
                 </select>
             </div>
@@ -130,7 +132,7 @@ else
 
     private int _seasonId;
     private string _stat = "points";
-    private int _window = 10;
+    private RollingWindow _window = RollingWindow.Default;
     private bool _cumulative = true;
     private GameScope _scope;
     private bool _timeAxis;
@@ -241,7 +243,7 @@ else
                 }
 
                 datasets.Add(TrendDatasets.From(
-                    all.Count == 1 ? $"{_window}-game average" : series.SubjectName,
+                    all.Count == 1 ? $"{_window.Label} average" : series.SubjectName,
                     series.Points, p => p.RollingAverage, colour, _timeAxis, length));
             }
         }
@@ -261,7 +263,7 @@ else
             Subtitles: subtitles,
             TimeAxis: _timeAxis);
 
-        _chartKey = $"{TeamId}-{_seasonId}-{_scope}-{_stat}-{_window}-{_cumulative}-{_timeAxis}-{_comparisons.Count}";
+        _chartKey = $"{TeamId}-{_seasonId}-{_scope}-{_stat}-{_window.Token}-{_cumulative}-{_timeAxis}-{_comparisons.Count}";
     }
 
     /// <summary>Pads a shorter run with nulls so every club stays on one x axis.</summary>
@@ -286,7 +288,7 @@ else
 
     private async Task OnWindowChanged(ChangeEventArgs e)
     {
-        if (int.TryParse(e.Value?.ToString(), out var window)) _window = window;
+        _window = RollingWindow.Parse(e.Value?.ToString());
         await LoadAsync();
     }
 

@@ -54,6 +54,31 @@ public class TrendPageTests : BluelinePageTest
     }
 
     [Test]
+    public async Task A_days_window_measures_the_calendar_rather_than_the_schedule()
+    {
+        // The seeded season is ten games at three points each, with a twenty-day layoff in the
+        // middle — so the two window kinds disagree, which is the entire reason both exist.
+        await GoToAsync(PlayerUrl);
+        await WaitForChartAsync();
+
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Per game", Exact = true }).ClickAsync();
+        await Expect(Page.Locator("#window")).ToBeVisibleAsync();
+
+        await Expect(Page.Locator(".stat-row .label").Nth(2)).ToHaveTextAsync("Best 10-game stretch");
+        await Expect(Page.Locator(".stat-row .value").Nth(2)).ToHaveTextAsync("30");
+
+        await Page.Locator("#window").SelectOptionAsync("7d");
+
+        // Four games fall inside the busiest week; ten games reach across the layoff as though
+        // it were not there. Thirty against twelve is that difference.
+        await Expect(Page.Locator(".stat-row .label").Nth(2)).ToHaveTextAsync("Best 7-day stretch");
+        await Expect(Page.Locator(".stat-row .value").Nth(2)).ToHaveTextAsync("12");
+
+        await WaitForChartAsync("chart.data.datasets.length === 2");
+        AssertNoConsoleErrors();
+    }
+
+    [Test]
     public async Task Switching_to_per_game_adds_the_rolling_average_series()
     {
         await GoToAsync(PlayerUrl);

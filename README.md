@@ -27,8 +27,8 @@ with no warnings.
 
 - **Season leaders** for points, goals, hits, blocks, time on ice and more.
 - **Player trends** — cumulative totals, or per-game values with a rolling average over a window
-  you choose. Search any player in the league and overlay up to five of them on one chart. Teams
-  and goalies compare the same way.
+  you choose, counted either in games or in days. Search any player in the league and overlay up
+  to five of them on one chart. Teams and goalies compare the same way.
 - **Goalie trends** — save percentage, goals-against average, saves, shots and goals against.
   Rates are combined by weighting each appearance by the shots faced, never by averaging the
   per-game percentages.
@@ -242,8 +242,18 @@ memory, which is cheaper than expressing window functions through the ORM and ke
 identical across database providers. Season-wide aggregates, which touch tens of thousands of
 rows, stay in SQL.
 
-A rolling average is reported only once a full window of games sits behind it — a partial window
-makes the opening weeks look far more volatile than they were.
+A rolling window is counted either in games or in days, and both are kept because they answer
+different questions. "Last 10 games" is right for per-game pace and for comparing players who have
+played different numbers of games. "Last 14 days" is right for who is hot now — and it is the only
+fair way to ask it of goalies, since a fortnight is four starts for one and eight for another. A
+games window ignores the calendar entirely: across a three-week injury it still spans ten games,
+so on the date axis its width bears no relation to the time it covers.
+
+Either way the average is per game — a days window divides by the games that fell inside it, not
+by the number of days — and it is reported only once a full window sits behind it, since a partial
+one makes the opening weeks look far more volatile than they were. For a days window "full" is a
+property of the calendar: the season has to reach back the whole period, however few games fell in
+between.
 
 Standings points are a regular-season construct. Playoff games award none — not for a win, and
 not for an overtime loss, since the playoffs have no loser point. A combined view therefore shows
@@ -304,6 +314,10 @@ strain. Everything goes through EF Core, so moving to PostgreSQL is a provider s
 | `GET /api/ingestion/status` | What is stored and how the last run went |
 | `GET /health` | Liveness: is the database reachable |
 | `GET /health/ready` | Readiness: is there data to serve, and is ingestion keeping up |
+
+Trend endpoints take `?window=` as either games or days: `10` and `10g` are ten games, `14d` is
+fourteen days. Games cap at 41 and days at 90, and anything unrecognised falls back to ten games.
+The response reports which unit it used as `rollingWindowUnit`.
 
 Every stat endpoint also takes `?scope=RegularSeason|Playoffs`; an unrecognised value falls
 back to the regular season rather than erroring, so a stale bookmark still renders — including

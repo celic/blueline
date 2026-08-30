@@ -8,8 +8,9 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 **Revised 2026-08-30 against the answers in `questions.md`.** Groups 1 and 2 are now complete apart
 from 1.6, and what remains is mostly one piece of work:
 
-- **The home page becomes a streaks dashboard and Leaders moves off `/`** — group 6. The largest
-  piece of new work in the document, and it needs a days-based window that does not exist yet (1.6).
+- **The home page becomes a streaks dashboard** — group 6. The largest piece of new work in the
+  document. Leaders has moved off `/` (6.1) and the days-based window it needs is built (1.6), so
+  what remains is computing the streaks and building the page.
 - **Deployment is waiting on things outside the repository** — 3.2 needs a Docker daemon, 3.3 needs
   3.2, and 4.3 needs the 2026-27 season to open on 2026-09-29.
 
@@ -131,9 +132,8 @@ year 1000 to 6500 and collapsing every point onto one pixel. The labels are now 
 time axis is in use. It would have shipped looking broken rather than subtly wrong, but only
 because the spacing was measured — a glance at the chart shape would not have caught the cause.
 
-Still open: the rolling window remains "N games", so across a layoff a 10-game average spans far
-more calendar time than its width on the date axis suggests. A days-based window would be a
-separate decision — and the answer to question 9 has now made that decision for us. See 1.6.
+That left the rolling window measured in games, so across a layoff a 10-game average spanned far
+more calendar time than its width on the date axis suggested. Closed by 1.6.
 
 ### 1.5 Drop the combined scope — `done`
 
@@ -166,23 +166,37 @@ the read landed in the window where the old chart is destroyed and the new one d
 branch and not at all on `main`, which is what a timing change looks like rather than a regression:
 one fewer option to render is enough to move the race. Now polled; 4 consecutive full runs pass.
 
-### 1.6 Add a days-based rolling window — `todo`
+### 1.6 Add a days-based rolling window — `done`
 
-The rolling window is "the last N games". Question 9 asks for "highest save percentage over the past
-two weeks", which is not expressible that way: two weeks is four starts for one goalie and eight for
-another, so an N-game window compares different spans of time and calls it the same statistic.
+Every rolling window now carries a unit. `10 games` and `14 days` sit in the same control, because
+they answer the same question measured differently and a second dropdown would imply otherwise.
 
-This was noted at the end of 1.4 as a possible refinement. It is now a prerequisite for group 6, and
-should be built with it rather than before it.
+- **Both average per game.** A days window divides by the games that fell inside it, not by the
+  number of days, so the rolling line keeps the units the rest of the chart uses and the two window
+  kinds can be compared directly.
+- **"Full" means something different for each.** A games window fills once enough games sit behind
+  it; a days window fills once the *season* spans the period, however few games fell in between.
+  Without that, opening night would report a "14-day average" over one game — form, from a single
+  data point.
+- **`?window=` takes `10`, `10g` or `14d`**, and a bare number still means games, so every existing
+  URL keeps its meaning. Unrecognised values fall back to ten games rather than erroring. The
+  response says which unit it used, serialised by name — the enum default would have put a bare
+  `1` in the JSON, which tells a reader nothing and changes meaning if the members are reordered.
 
-- `BuildPoints` takes a window count; it needs to accept a window expressed in days, which means
-  looking back by `Date` rather than by index.
-- The two are not interchangeable and both should stay. "Last 10 games" is the right question for
-  per-game pace; "last 14 days" is the right question for who is hot right now.
-- The trend pages need to say which one is in use, since the two produce visibly different lines
-  over a layoff and nothing on the chart would otherwise explain the difference.
+**The best-stretch tile was quietly wrong for any days window, and fixing it needed new data.** It
+computed the best stretch as the highest rolling average times the window size, which is only
+correct when the window is counted in games. Over fourteen days a player might play four times or
+eight, so multiplying by fourteen would have reported a total nobody came close to. `TrendPoint`
+now carries `RollingTotal` — what the window's games actually add up to — which is null for a rate,
+where totalling per-game percentages would produce a number with no unit.
 
----
+Verified against the live database rather than only the seeded one: Draisaitl's best ten-game
+stretch is 23 points, his best fourteen-day stretch 17, and the chart legend reads "14-day average".
+The UI test pins the same distinction on seeded data where the numbers are exactly predictable —
+30 against 12, across a twenty-day layoff.
+
+20 unit tests cover the window itself, including the inclusive boundary, games sharing a date, and
+the layoff case that motivated the whole item.
 
 ## 2. Robustness — before deploying
 

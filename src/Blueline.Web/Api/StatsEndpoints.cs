@@ -52,14 +52,14 @@ public static class StatsEndpoints
                 CancellationToken ct,
                 int? season = null,
                 string stat = "points",
-                int window = 10,
+                string? window = null,
                 string? scope = null) =>
             {
                 var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
                 if (seasonId is null) return Results.NotFound();
 
                 var series = await queries.GetPlayerTrendAsync(
-                    playerId, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
+                    playerId, seasonId.Value, stat, RollingWindow.Parse(window), GameScopes.Parse(scope), ct);
                 return series is null
                     ? Results.NotFound(new { message = $"No player {playerId}, or '{stat}' is not a chartable stat." })
                     : Results.Ok(series);
@@ -74,7 +74,7 @@ public static class StatsEndpoints
                 string? ids = null,
                 int? season = null,
                 string stat = "points",
-                int window = 10,
+                string? window = null,
                 string? scope = null) =>
             {
                 var playerIds = ParseIds(ids);
@@ -87,7 +87,7 @@ public static class StatsEndpoints
                 foreach (var id in playerIds)
                 {
                     var trend = await queries.GetPlayerTrendAsync(
-                        id, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
+                        id, seasonId.Value, stat, RollingWindow.Parse(window), GameScopes.Parse(scope), ct);
                     if (trend is not null) series.Add(trend);
                 }
 
@@ -101,7 +101,7 @@ public static class StatsEndpoints
                 string? ids = null,
                 int? season = null,
                 string stat = "savePctg",
-                int window = 10,
+                string? window = null,
                 string? scope = null) =>
             {
                 var goalieIds = ParseIds(ids);
@@ -114,7 +114,7 @@ public static class StatsEndpoints
                 foreach (var id in goalieIds)
                 {
                     var trend = await queries.GetGoalieTrendAsync(
-                        id, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
+                        id, seasonId.Value, stat, RollingWindow.Parse(window), GameScopes.Parse(scope), ct);
                     if (trend is not null) series.Add(trend);
                 }
 
@@ -128,7 +128,7 @@ public static class StatsEndpoints
                 string? ids = null,
                 int? season = null,
                 string stat = "points",
-                int window = 10,
+                string? window = null,
                 string? scope = null) =>
             {
                 var teamIds = ParseIds(ids);
@@ -141,7 +141,7 @@ public static class StatsEndpoints
                 foreach (var id in teamIds)
                 {
                     var trend = await queries.GetTeamTrendAsync(
-                        id, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
+                        id, seasonId.Value, stat, RollingWindow.Parse(window), GameScopes.Parse(scope), ct);
                     if (trend is not null) series.Add(trend);
                 }
 
@@ -172,14 +172,14 @@ public static class StatsEndpoints
                 CancellationToken ct,
                 int? season = null,
                 string stat = "savePctg",
-                int window = 10,
+                string? window = null,
                 string? scope = null) =>
             {
                 var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
                 if (seasonId is null) return Results.NotFound();
 
                 var series = await queries.GetGoalieTrendAsync(
-                    playerId, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
+                    playerId, seasonId.Value, stat, RollingWindow.Parse(window), GameScopes.Parse(scope), ct);
                 return series is null
                     ? Results.NotFound(new { message = $"No goalie {playerId}, or '{stat}' is not a chartable goalie stat." })
                     : Results.Ok(series);
@@ -205,14 +205,14 @@ public static class StatsEndpoints
                 CancellationToken ct,
                 int? season = null,
                 string stat = "points",
-                int window = 10,
+                string? window = null,
                 string? scope = null) =>
             {
                 var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
                 if (seasonId is null) return Results.NotFound();
 
                 var series = await queries.GetTeamTrendAsync(
-                    teamId, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
+                    teamId, seasonId.Value, stat, RollingWindow.Parse(window), GameScopes.Parse(scope), ct);
                 return series is null
                     ? Results.NotFound(new { message = $"No team {teamId}, or '{stat}' is not a chartable stat." })
                     : Results.Ok(series);
