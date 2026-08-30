@@ -58,6 +58,23 @@ switch (command)
         return 0;
     }
 
+    case "reconcile":
+    {
+        if (args.Length < 2 || !int.TryParse(args[1], out var seasonId))
+        {
+            Console.Error.WriteLine("Usage: reconcile <seasonId>   e.g. reconcile 20252026");
+            return 1;
+        }
+
+        Console.WriteLine($"Checking season {StatsQueryService.FormatSeason(seasonId)} against the league schedule.");
+        var ingestion = services.GetRequiredService<NhlIngestionService>();
+        var count = await ingestion.ReconcileSeasonAsync(seasonId);
+        Console.WriteLine(count == 0
+            ? "Nothing missing."
+            : $"Filled {count} gap(s).");
+        return 0;
+    }
+
     case "status":
     {
         var queries = services.GetRequiredService<StatsQueryService>();
@@ -81,6 +98,7 @@ switch (command)
 
               backfill <seasonId>   Load a full season, e.g. backfill 20252026
               daily [days] [date]   Re-read the N days ending on date (defaults: 3 days, today)
+              reconcile <seasonId>  Ingest any games the league lists but we do not have
               status                Show what is currently stored
             """);
         return command is null ? 0 : 1;

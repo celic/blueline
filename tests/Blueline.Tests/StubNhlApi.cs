@@ -85,6 +85,33 @@ public class StubNhlApi : HttpMessageHandler
         }
         """;
 
+    /// <summary>The shape of /v1/standings/{date}, which is only read for team abbreviations.</summary>
+    public static string Standings(params string[] abbrevs)
+    {
+        var rows = abbrevs.Select(a => $$"""
+            { "teamAbbrev": { "default": "{{a}}" }, "teamName": { "default": "{{a}} Club" },
+              "teamLogo": "https://example.test/{{a}}.svg" }
+            """);
+
+        return $$"""{ "standings": [{{string.Join(",", rows)}}] }""";
+    }
+
+    /// <summary>
+    /// The shape of /v1/club-schedule-season/{team}/{season}. Like /score, abbrev here is a bare
+    /// string rather than a locale object.
+    /// </summary>
+    public static string ClubSchedule(params (long GameId, int GameType, string Date, int HomeId, string HomeAbbrev, int AwayId, string AwayAbbrev)[] games)
+    {
+        var entries = games.Select(g => $$"""
+            { "id": {{g.GameId}}, "season": 20252026, "gameType": {{g.GameType}},
+              "gameDate": "{{g.Date}}", "gameState": "OFF",
+              "homeTeam": { "id": {{g.HomeId}}, "abbrev": "{{g.HomeAbbrev}}" },
+              "awayTeam": { "id": {{g.AwayId}}, "abbrev": "{{g.AwayAbbrev}}" } }
+            """);
+
+        return $$"""{ "games": [{{string.Join(",", entries)}}] }""";
+    }
+
     /// <summary>
     /// A club's season roster, which is where full first and last names come from. Box scores
     /// only ever carry an abbreviated "A. Forward".

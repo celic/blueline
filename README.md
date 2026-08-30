@@ -63,6 +63,7 @@ Other CLI commands:
 | --- | --- |
 | `backfill <seasonId>` | Load a full season, e.g. `backfill 20252026` |
 | `daily [days] [date]` | Re-read the N days ending on a date (default 3 days, today) |
+| `reconcile <seasonId>` | Ingest any games the league lists but the database is missing |
 | `status` | Show what is stored and how the last run went |
 
 Tests:

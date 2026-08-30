@@ -196,15 +196,25 @@ Details worth keeping:
 
 Games recorded here are exactly what 2.3 should re-fetch.
 
-### 2.3 Add a reconcile command to close gaps — `todo`
+### 2.3 Add a reconcile command to close gaps — `done`
 
-The daily job only looks back `LookbackDays` (3). If the app is down for longer — a free host
-sleeping on inactivity makes this likely — those games are missed permanently, and nothing
-detects it.
+`reconcile <seasonId>` diffs the league's schedule for a season against what is stored and
+ingests whatever is absent. It is the safety net under the daily job, whose three-day lookback
+would never notice a longer outage — a free host asleep, a machine off over a weekend — and it
+also picks up games an earlier run recorded as failed under 2.2.
 
-- Add `reconcile <seasonId>` to `src/Blueline.Cli/Program.cs`: diff the league's schedule for
-  the season against stored game ids and ingest whatever is missing.
-- This also repairs anything lost to 2.2.
+- **Cheap when nothing is wrong.** The schedule walk is 33 requests and no box score is fetched
+  unless something is genuinely missing. Verified against the live 2025-26 season: reported all
+  1,394 games present and fetched nothing.
+- **It also re-reads games stored with no stat lines**, not just absent ones. A half-applied box
+  score leaves a game row that looks stored while charting as though nobody played, which no
+  count of games would ever reveal.
+- Preseason is excluded, so a schedule full of September exhibitions is not chased.
+- Runs are recorded under their own `reconcile` kind, and a no-op run is still closed out.
+
+Verified end to end by deleting a real game from the database: reconcile reported "1 of 1394
+games need ingesting" and restored the game with all 36 skater lines, 4 goalie lines and 2 team
+lines.
 
 ### 2.4 Add a health endpoint — `todo`
 

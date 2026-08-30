@@ -89,6 +89,85 @@ public class NhlIngestionService(
         }
     }
 
+    /// <summary>
+    /// Compares the league's schedule for a season against what is stored, and ingests whatever
+    /// is absent.
+    ///
+    /// This is the safety net under the daily job. That job only looks back a few days, so any
+    /// stretch where the app was not running — a free host asleep, a machine off over a
+    /// weekend — leaves a hole nothing else would ever notice. It also picks up the games that
+    /// an earlier run recorded as failed.
+    ///
+    /// Cheap to run when there is nothing wrong: the schedule walk is 33 requests, and no box
+    /// score is fetched unless something is genuinely missing.
+    /// </summary>
+    public async Task<int> ReconcileSeasonAsync(int seasonId, CancellationToken ct = default)
+    {
+        var run = await StartRunAsync("reconcile", seasonId, ct);
+        try
+        {
+            var abbrevs = await SyncTeamsAsync(seasonId, ct);
+            if (abbrevs.Count == 0)
+                throw new InvalidOperationException($"Could not resolve any teams for season {seasonId}.");
+
+            var expected = await DiscoverSeasonGameIdsAsync(seasonId, abbrevs, ct);
+            var missing = await FindGamesNeedingIngestionAsync(seasonId, expected, ct);
+
+            if (missing.Count == 0)
+            {
+                logger.LogInformation(
+                    "Season {Season} is complete: all {Count} games are stored.", seasonId, expected.Count);
+                await CompleteRunAsync(run, IngestionOutcome.Nothing, ct);
+                return 0;
+            }
+
+            logger.LogInformation(
+                "Season {Season}: {Missing} of {Expected} games need ingesting.",
+                seasonId, missing.Count, expected.Count);
+
+            var outcome = await IngestGamesAsync(missing, ct);
+            if (outcome.Ingested > 0) await EnrichPlayerNamesAsync(seasonId, abbrevs, ct);
+
+            await CompleteRunAsync(run, outcome, ct);
+            return outcome.Ingested;
+        }
+        catch (Exception ex)
+        {
+            await FailRunAsync(run, ex, ct);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Games the league lists that we cannot show: either absent entirely, or present as a row
+    /// with no stat lines behind it. The second case matters because a game whose box score was
+    /// only half applied looks stored while charting as though nobody played.
+    /// </summary>
+    private async Task<List<long>> FindGamesNeedingIngestionAsync(
+        int seasonId, IReadOnlyList<long> expected, CancellationToken ct)
+    {
+        var stored = (await db.Games
+                .Where(g => g.SeasonId == seasonId)
+                .Select(g => g.Id)
+                .ToListAsync(ct))
+            .ToHashSet();
+
+        var empty = await db.Games
+            .Where(g => g.SeasonId == seasonId && !g.SkaterGameStats.Any())
+            .Select(g => g.Id)
+            .ToListAsync(ct);
+
+        if (empty.Count > 0)
+            logger.LogWarning("{Count} stored game(s) have no player stats and will be re-read.", empty.Count);
+
+        return expected
+            .Where(id => !stored.Contains(id))
+            .Concat(empty)
+            .Distinct()
+            .Order()
+            .ToList();
+    }
+
     /// <summary>Regular season and playoffs only, and only once the game is actually over.</summary>
     internal static bool IsIngestableGame(ScheduleGame g) =>
         g.GameType is GameTypes.Regular or GameTypes.Playoffs && g.GameState is "OFF" or "FINAL";
