@@ -35,7 +35,14 @@ public static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(30);
             // The API is undocumented and unauthenticated; identify ourselves anyway.
             client.DefaultRequestHeaders.UserAgent.ParseAdd("Blueline/1.0 (+hockey trend viewer)");
-        });
+        })
+        // A backfill makes ~1,400 requests, so a transient blip is close to certain. Retries
+        // turn that into a non-event instead of a permanently missing game.
+        //
+        // The bundled circuit breaker is wanted too: if the league's API genuinely degrades,
+        // backing off is politer than hammering it. Games rejected while the circuit is open are
+        // recorded as failures on the ingestion run and can be picked up by a later pass.
+        .AddStandardResilienceHandler();
 
         return services;
     }

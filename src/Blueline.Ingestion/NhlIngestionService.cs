@@ -34,11 +34,11 @@ public class NhlIngestionService(
             var gameIds = await DiscoverSeasonGameIdsAsync(seasonId, abbrevs, ct);
             logger.LogInformation("Season {Season}: {Count} completed games to ingest.", seasonId, gameIds.Count);
 
-            var ingested = await IngestGamesAsync(gameIds, ct);
+            var outcome = await IngestGamesAsync(gameIds, ct);
             await EnrichPlayerNamesAsync(seasonId, abbrevs, ct);
 
-            await CompleteRunAsync(run, ingested, ct);
-            return ingested;
+            await CompleteRunAsync(run, outcome, ct);
+            return outcome.Ingested;
         }
         catch (Exception ex)
         {
@@ -66,10 +66,10 @@ public class NhlIngestionService(
                 gameIds.AddRange(score.Games.Where(IsIngestableGame).Select(g => g.Id));
             }
 
-            var ingested = await IngestGamesAsync(gameIds.Distinct().ToList(), ct);
+            var outcome = await IngestGamesAsync(gameIds.Distinct().ToList(), ct);
 
             // New season, new rosters: refresh names for any player we only know by initial.
-            if (ingested > 0)
+            if (outcome.Ingested > 0)
             {
                 var season = await db.Games.OrderByDescending(g => g.GameDate).Select(g => g.SeasonId).FirstOrDefaultAsync(ct);
                 if (season != 0)
@@ -79,8 +79,8 @@ public class NhlIngestionService(
                 }
             }
 
-            await CompleteRunAsync(run, ingested, ct);
-            return ingested;
+            await CompleteRunAsync(run, outcome, ct);
+            return outcome.Ingested;
         }
         catch (Exception ex)
         {
@@ -156,20 +156,35 @@ public class NhlIngestionService(
         await db.SaveChangesAsync(ct);
     }
 
-    private async Task<int> IngestGamesAsync(IReadOnlyList<long> gameIds, CancellationToken ct)
+    /// <summary>What one pass over a set of games managed to store, and what it could not.</summary>
+    internal record IngestionOutcome(int Ingested, IReadOnlyList<long> FailedGameIds)
+    {
+        public static readonly IngestionOutcome Nothing = new(0, []);
+    }
+
+    private async Task<IngestionOutcome> IngestGamesAsync(IReadOnlyList<long> gameIds, CancellationToken ct)
     {
         var ingested = 0;
+        var failed = new List<long>();
 
         foreach (var batch in gameIds.Chunk(FetchConcurrency))
         {
             ct.ThrowIfCancellationRequested();
 
-            // Fetch concurrently, persist serially: DbContext is not thread-safe.
+            // Fetch concurrently, persist serially: DbContext is not thread-safe. Ids are paired
+            // with their responses so a null can be attributed to the game it belongs to.
             var boxscores = await Task.WhenAll(batch.Select(id => api.GetBoxscoreAsync(id, ct)));
 
-            foreach (var box in boxscores)
+            foreach (var (id, box) in batch.Zip(boxscores))
             {
-                if (box is null) continue;
+                if (box is null)
+                {
+                    // The client has already retried and logged. Record it rather than moving on:
+                    // a silently skipped game is indistinguishable from one that was never played.
+                    failed.Add(id);
+                    continue;
+                }
+
                 await ApplyBoxscoreAsync(box, ct);
                 ingested++;
             }
@@ -181,7 +196,10 @@ public class NhlIngestionService(
                 logger.LogInformation("Ingested {Count}/{Total} games.", ingested, gameIds.Count);
         }
 
-        return ingested;
+        if (failed.Count > 0)
+            logger.LogWarning("{Count} game(s) could not be read: {GameIds}", failed.Count, string.Join(", ", failed));
+
+        return new IngestionOutcome(ingested, failed);
     }
 
     private async Task ApplyBoxscoreAsync(BoxscoreResponse box, CancellationToken ct)
@@ -433,14 +451,32 @@ public class NhlIngestionService(
         return run;
     }
 
-    private async Task CompleteRunAsync(IngestionRun run, int gamesIngested, CancellationToken ct)
+    /// <summary>
+    /// How much of the failed-id list is kept. Enough to act on a bad night without letting one
+    /// broken run write an unbounded string; the count stays exact either way.
+    /// </summary>
+    internal const int MaxRecordedFailedIds = 50;
+
+    private async Task CompleteRunAsync(IngestionRun run, IngestionOutcome outcome, CancellationToken ct)
     {
         // The change tracker is cleared between batches, so re-attach before finishing the record.
         db.IngestionRuns.Attach(run);
-        run.GamesIngested = gamesIngested;
+        run.GamesIngested = outcome.Ingested;
+        run.GamesFailed = outcome.FailedGameIds.Count;
+        run.FailedGameIds = FormatFailedIds(outcome.FailedGameIds);
         run.CompletedUtc = DateTimeOffset.UtcNow;
         run.Status = IngestionStatus.Succeeded;
         await db.SaveChangesAsync(ct);
+    }
+
+    internal static string? FormatFailedIds(IReadOnlyList<long> failedGameIds)
+    {
+        if (failedGameIds.Count == 0) return null;
+
+        var kept = string.Join(",", failedGameIds.Take(MaxRecordedFailedIds));
+        return failedGameIds.Count > MaxRecordedFailedIds
+            ? $"{kept},… ({failedGameIds.Count - MaxRecordedFailedIds} more)"
+            : kept;
     }
 
     private async Task FailRunAsync(IngestionRun run, Exception ex, CancellationToken ct)

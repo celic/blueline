@@ -453,7 +453,8 @@ public class StatsQueryService(BluelineDbContext db)
 
         return new IngestionStatusDto(
             last?.Kind, last?.StartedUtc, last?.CompletedUtc,
-            last?.Status.ToString(), last?.Error, gameCount, latestDate);
+            last?.Status.ToString(), last?.Error, gameCount, latestDate,
+            last?.GamesFailed ?? 0, last?.FailedGameIds);
     }
 
     /// <summary>

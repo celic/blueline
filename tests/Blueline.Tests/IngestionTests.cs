@@ -379,6 +379,138 @@ public class IngestionTests
     }
 
     [Test]
+    public async Task A_game_whose_box_score_cannot_be_read_is_recorded_rather_than_skipped_silently()
+    {
+        // The score lists two games but only one box score is available.
+        var stub = new StubNhlApi()
+            .Add("score/2026-01-15", StubNhlApi.Score("2026-01-15", 2025020001, 2025020002))
+            .Add("gamecenter/2025020001/boxscore",
+                StubNhlApi.Boxscore(2025020001, "2026-01-15", 21, "HME", 22, "AWY", 1, 3));
+
+        var ingested = await BuildService(stub).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        var run = await _db.IngestionRuns.SingleAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ingested, Is.EqualTo(1), "the readable game is still stored");
+            Assert.That(run.GamesFailed, Is.EqualTo(1));
+            Assert.That(run.FailedGameIds, Is.EqualTo("2025020002"),
+                "the identifier must be recorded so a later pass knows what to re-fetch");
+        });
+    }
+
+    [Test]
+    public async Task One_unreadable_game_does_not_abandon_the_rest_of_the_batch()
+    {
+        // The failure sits first, so a naive implementation would lose the games behind it.
+        var stub = new StubNhlApi()
+            .Add("score/2026-01-15", StubNhlApi.Score("2026-01-15", 2025020001, 2025020002, 2025020003))
+            .Add("gamecenter/2025020002/boxscore",
+                StubNhlApi.Boxscore(2025020002, "2026-01-15", 21, "HME", 22, "AWY", 1, 3))
+            .Add("gamecenter/2025020003/boxscore",
+                StubNhlApi.Boxscore(2025020003, "2026-01-15", 21, "HME", 23, "OTH", 4, 2));
+
+        var ingested = await BuildService(stub).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(ingested, Is.EqualTo(2));
+            Assert.That(await _db.Games.CountAsync(), Is.EqualTo(2));
+        });
+    }
+
+    [Test]
+    public async Task A_failed_game_is_attributed_to_the_right_identifier()
+    {
+        // Pairing responses back to their ids by position is easy to get subtly wrong.
+        var stub = new StubNhlApi()
+            .Add("score/2026-01-15", StubNhlApi.Score("2026-01-15", 2025020001, 2025020002, 2025020003))
+            .Add("gamecenter/2025020001/boxscore",
+                StubNhlApi.Boxscore(2025020001, "2026-01-15", 21, "HME", 22, "AWY", 1, 3))
+            .Add("gamecenter/2025020003/boxscore",
+                StubNhlApi.Boxscore(2025020003, "2026-01-15", 21, "HME", 23, "OTH", 4, 2));
+
+        await BuildService(stub).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        var run = await _db.IngestionRuns.SingleAsync();
+
+        Assert.That(run.FailedGameIds, Is.EqualTo("2025020002"), "the middle game is the missing one");
+    }
+
+    [Test]
+    public async Task A_run_with_failures_still_succeeds_so_the_rest_of_the_night_is_kept()
+    {
+        var stub = new StubNhlApi()
+            .Add("score/2026-01-15", StubNhlApi.Score("2026-01-15", 2025020001, 2025020002))
+            .Add("gamecenter/2025020001/boxscore",
+                StubNhlApi.Boxscore(2025020001, "2026-01-15", 21, "HME", 22, "AWY", 1, 3));
+
+        await BuildService(stub).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        var run = await _db.IngestionRuns.SingleAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(run.Status, Is.EqualTo(IngestionStatus.Succeeded));
+            Assert.That(run.Error, Is.Null, "a partial shortfall is not a run-level error");
+        });
+    }
+
+    [Test]
+    public async Task A_clean_run_records_no_failures()
+    {
+        await BuildService(TwoGamesSharingATeam()).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        var run = await _db.IngestionRuns.SingleAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(run.GamesFailed, Is.Zero);
+            Assert.That(run.FailedGameIds, Is.Null, "null rather than an empty string, so the column reads cleanly");
+        });
+    }
+
+    [Test]
+    public async Task The_ingestion_status_reports_the_shortfall()
+    {
+        var stub = new StubNhlApi()
+            .Add("score/2026-01-15", StubNhlApi.Score("2026-01-15", 2025020001, 2025020002))
+            .Add("gamecenter/2025020001/boxscore",
+                StubNhlApi.Boxscore(2025020001, "2026-01-15", 21, "HME", 22, "AWY", 1, 3));
+
+        await BuildService(stub).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        var status = await new StatsQueryService(_db).GetIngestionStatusAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(status.LastRunGamesFailed, Is.EqualTo(1));
+            Assert.That(status.LastRunFailedGameIds, Is.EqualTo("2025020002"));
+        });
+    }
+
+    [Test]
+    public void A_long_list_of_failures_is_truncated_but_still_counted()
+    {
+        var ids = Enumerable.Range(1, NhlIngestionService.MaxRecordedFailedIds + 10)
+            .Select(i => (long)(2025020000 + i))
+            .ToList();
+
+        var formatted = NhlIngestionService.FormatFailedIds(ids);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(formatted, Does.Contain("(10 more)"));
+            Assert.That(formatted!.Split(',').Length, Is.LessThanOrEqualTo(NhlIngestionService.MaxRecordedFailedIds + 1));
+        });
+    }
+
+    [Test]
+    public void No_failures_formats_as_null_rather_than_an_empty_string() =>
+        Assert.That(NhlIngestionService.FormatFailedIds([]), Is.Null);
+
+    [Test]
     public async Task Trends_read_back_the_games_that_were_ingested()
     {
         await BuildService(TwoGamesSharingATeam()).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);

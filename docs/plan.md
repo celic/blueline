@@ -172,16 +172,29 @@ defaulting to WAL.
 Still open: whether to lower `CommandTimeout` so an overlapping manual refresh fails in a few
 seconds rather than stalling for thirty.
 
-### 2.2 Retry transient API failures, and record games that fail — `todo`
+### 2.2 Retry transient API failures, and record games that fail — `done`
 
-`NhlApiClient` makes one attempt per request and returns null on failure. In
-`IngestGamesAsync`, a null box score hits `if (box is null) continue;` — the game is skipped
-silently, never counted, and never retried. A backfill fires ~1,400 requests, so a single
-network blip permanently loses a game with nothing recording which one.
+`AddStandardResilienceHandler` now sits on the league API client, so a transient blip is retried
+with backoff rather than costing a game outright. Anything still unread after those retries is
+recorded on the ingestion run — `GamesFailed` plus the identifiers in `FailedGameIds` — and shown
+on the Data page, instead of being skipped in silence.
 
-- Add a retry with backoff to the `AddHttpClient<NhlApiClient>` registration
-  (`AddStandardResilienceHandler`, or Polly directly).
-- Record failed game ids on the `IngestionRun` so a failure is visible rather than silent.
+Details worth keeping:
+
+- **The client's `catch` had to widen.** The resilience pipeline throws its own types on a
+  spent retry or an open circuit, and neither is an `HttpRequestException`. Leaving the old
+  narrow catch in place would have let one of them escape and abandon an entire backfill —
+  adding resilience would have made things worse. Cancellation still propagates.
+- **A run with failures is still `Succeeded`.** The rest of the night is worth keeping, and a
+  partial shortfall is not a run-level error. The count is what makes it visible.
+- **Responses are zipped back to their ids** so a null is attributed to the game it belongs to,
+  rather than by position alone.
+- **`FailedGameIds` is truncated** at 50 ids so one bad run cannot write an unbounded string;
+  `GamesFailed` stays exact.
+- Polly logs every attempt at information level, including successes, so it is filtered to
+  warnings alongside the existing HTTP and EF filters.
+
+Games recorded here are exactly what 2.3 should re-fetch.
 
 ### 2.3 Add a reconcile command to close gaps — `todo`
 
@@ -232,6 +245,12 @@ stats are correct; only the display name is short.
 
 - Fall back to `/v1/player/{id}/landing` for players still matching `NeedsRealName` after the
   roster pass. That is one request per unnamed player — 30, not 1,063.
+
+This costs more than a cosmetic blemish, which was not obvious when the item was written. The
+enrichment pass is skipped only when *every* player has a real name, so these 30 — who never
+will, from the roster endpoint — keep the guard permanently open. Every daily run therefore
+re-fetches all 32 club rosters for both game types, around 64 requests a night, to resolve
+nothing. Fixing the names also fixes that.
 
 ### 4.2 Load more seasons — `todo`
 

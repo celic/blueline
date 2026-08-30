@@ -17,6 +17,8 @@ builder.Services.AddOpenApi();
 // Per-call HTTP and SQL logs would drown out everything else during a backfill.
 builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
 builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
+// The resilience pipeline logs every attempt, including the successes.
+builder.Logging.AddFilter("Polly", LogLevel.Warning);
 
 var app = builder.Build();
 

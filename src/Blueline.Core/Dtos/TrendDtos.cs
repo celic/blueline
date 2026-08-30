@@ -102,4 +102,6 @@ public record IngestionStatusDto(
     string? LastRunStatus,
     string? LastRunError,
     int GamesInDatabase,
-    DateOnly? LatestGameDate);
+    DateOnly? LatestGameDate,
+    int LastRunGamesFailed = 0,
+    string? LastRunFailedGameIds = null);

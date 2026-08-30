@@ -14,6 +14,8 @@ builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
 // A backfill makes thousands of HTTP and SQL calls; per-call logs would bury the progress lines.
 builder.Logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
 builder.Logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Warning);
+// The resilience pipeline logs every attempt, including the successes.
+builder.Logging.AddFilter("Polly", LogLevel.Warning);
 
 using var host = builder.Build();
 using var scope = host.Services.CreateScope();

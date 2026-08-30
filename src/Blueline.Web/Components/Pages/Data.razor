@@ -78,6 +78,15 @@
         {
             <p class="bad">@_status.LastRunError</p>
         }
+
+        @if (_status.LastRunGamesFailed > 0)
+        {
+            <p class="bad">
+                @_status.LastRunGamesFailed game(s) could not be read on the last run, after retries.
+                Their stats are missing until a later run picks them up.
+            </p>
+            <p class="muted"><code>@_status.LastRunFailedGameIds</code></p>
+        }
     }
 
     <p class="muted" style="margin-top:.5rem">

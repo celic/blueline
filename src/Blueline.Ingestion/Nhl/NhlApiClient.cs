@@ -40,8 +40,19 @@ public class NhlApiClient(HttpClient http, ILogger<NhlApiClient> logger)
             logger.LogError(ex, "Could not parse the NHL API response for {Path}. The response shape may have changed.", path);
             return null;
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            // The host is shutting down. This must escape rather than look like a bad response.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Everything else is treated as a failed request for this one path: a transport
+            // fault, an HTTP error status, a timeout, or a rejection from the resilience
+            // pipeline once its retries are spent or its circuit is open. Catching broadly
+            // matters here — the pipeline's own exception types are not HttpRequestException,
+            // and letting one escape would abandon an entire backfill over a single game.
+            // The caller records the identifier so nothing is lost silently.
             logger.LogWarning(ex, "NHL API call failed for {Path}", path);
             return null;
         }
