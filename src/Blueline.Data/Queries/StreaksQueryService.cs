@@ -151,7 +151,7 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
             .Where(r => r.Shots >= MinimumSeasonShots)
             .ToDictionary(r => r.PlayerId, r => (double)r.Saves / r.Shots);
 
-        var candidates = new List<(int Id, int Games, double Saves, double Shots)>();
+        var candidates = new List<(int Id, int Games, double Saves, double Shots, List<double> Values)>();
 
         foreach (var group in rows.GroupBy(r => r.PlayerId))
         {
@@ -168,7 +168,11 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
 
             candidates.Add((
                 group.Key, appearances.Count,
-                appearances.Sum(a => (double)a.Saves), appearances.Sum(a => (double)a.ShotsAgainst)));
+                appearances.Sum(a => (double)a.Saves), appearances.Sum(a => (double)a.ShotsAgainst),
+                appearances
+                    .Select(a => a.ShotsAgainst > 0 ? (double)a.Saves / a.ShotsAgainst : 0)
+                    .Reverse()
+                    .ToList()));
         }
 
         var busiest = candidates.Count == 0 ? 0 : candidates.Max(c => c.Shots);
@@ -185,7 +189,7 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
                     Math.Round(pctg, 4), Math.Round(pctg, 4), Math.Round(baseline, 4),
                     // A difference, not a multiple: .930 against .910 is twenty points of save
                     // percentage, and a ratio of 1.02 would say nothing anyone recognises.
-                    Math.Round(pctg - baseline, 4));
+                    Math.Round(pctg - baseline, 4), c.Values);
             })
             .OrderByDescending(l => l.Lift)
             .ThenByDescending(l => l.Total)
@@ -200,7 +204,7 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
     /// One subject's window, or null when it does not hold one: too few games for a days window,
     /// or fewer games than a games window asks for.
     /// </summary>
-    private static (int Id, int Games, double Total)? Run(
+    private static (int Id, int Games, double Total, List<double> Values)? Run(
         int subjectId, List<(DateOnly Date, double Value)> newestFirst, RollingWindow window)
     {
         var inWindow = newestFirst;
@@ -215,7 +219,12 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
             return null;
         }
 
-        return (subjectId, inWindow.Count, inWindow.Sum(r => r.Value));
+        return (
+            subjectId,
+            inWindow.Count,
+            inWindow.Sum(r => r.Value),
+            // Reversed, because the rows arrived newest first and a line is read left to right.
+            inWindow.Select(r => r.Value).Reverse().ToList());
     }
 
     /// <summary>
@@ -223,7 +232,8 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
     /// than ranked against an assumed one.
     /// </summary>
     private static List<StreakLeader> Rank(
-        List<(int Id, int Games, double Total)> runs, Func<int, double?> baselineFor, int take)
+        List<(int Id, int Games, double Total, List<double> Values)> runs,
+        Func<int, double?> baselineFor, int take)
     {
         if (runs.Count == 0) return [];
 
@@ -240,7 +250,7 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
                 return new StreakLeader(
                     x.Run.Id, "", null, null, x.Run.Games,
                     Math.Round(x.Run.Total, 2), Math.Round(perGame, 3), Math.Round(x.Baseline!.Value, 3),
-                    Math.Round(perGame / x.Baseline!.Value, 2));
+                    Math.Round(perGame / x.Baseline!.Value, 2), x.Run.Values);
             })
             .OrderByDescending(l => l.Lift)
             // A tie on lift goes to the bigger run, which is the more convincing version of the

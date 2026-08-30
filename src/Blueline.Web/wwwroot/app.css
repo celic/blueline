@@ -111,6 +111,62 @@ h2 { font-size: 1.05rem; margin: 0 0 .75rem; font-weight: 600; }
     gap: 1.25rem;
 }
 
+/* --- streak panels --- */
+
+.streak-panels { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
+
+.panel { padding-bottom: .6rem; }
+
+.panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .5rem;
+}
+
+.panel-head h2 { margin: 0; font-size: 1rem; }
+.panel-head .muted { font-size: .8rem; }
+.panel-empty { font-size: .875rem; margin: .25rem 0 .5rem; }
+
+.streak-list { list-style: none; margin: 0; padding: 0; counter-reset: streak; }
+
+.streak-list a {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 96px 3.2rem;
+    align-items: center;
+    gap: .6rem;
+    padding: .4rem .35rem;
+    border-radius: 6px;
+    color: inherit;
+}
+
+.streak-list a:hover { background: var(--surface-2); text-decoration: none; }
+
+.streak-who { display: flex; flex-direction: column; min-width: 0; gap: .1rem; }
+
+.streak-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.streak-detail { font-size: .76rem; }
+
+.streak-lift {
+    text-align: right;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--good);
+}
+
+.sparkline { width: 96px; height: 24px; overflow: visible; }
+.sparkline-line { fill: none; stroke: var(--accent-strong); stroke-width: 1.5; stroke-linejoin: round; }
+.sparkline-fill { fill: var(--accent-strong); opacity: .12; }
+.sparkline-last { fill: var(--accent-strong); }
+
+@media (max-width: 420px) {
+    /* The line is the first thing to go: a name and a number still say what happened. */
+    .streak-list a { grid-template-columns: minmax(0, 1fr) 3.2rem; }
+    .sparkline { display: none; }
+}
+
 .tile { display: block; color: inherit; }
 .tile:hover { border-color: var(--accent-strong); text-decoration: none; }
 .tile h2 { margin: 0 0 .35rem; font-size: 1.05rem; }

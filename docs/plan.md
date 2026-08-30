@@ -8,9 +8,8 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 **Revised 2026-08-30 against the answers in `questions.md`.** Groups 1 and 2 are now complete apart
 from 1.6, and what remains is mostly one piece of work:
 
-- **The home page becomes a streaks dashboard** — group 6. The largest piece of new work in the
-  document. Leaders has moved off `/` (6.1) and the days-based window it needs is built (1.6), so
-  what remains is computing the streaks and building the page.
+- **The home page is a streaks dashboard** — group 6, built. What remains of it is 6.4, how the
+  page reads when the newest game is months old.
 - **Deployment is waiting on things outside the repository** — 3.2 needs a Docker daemon, 3.3 needs
   3.2, and 4.3 needs the 2026-27 season to open on 2026-09-29.
 
@@ -665,27 +664,47 @@ rather than copied. Projecting the grouped rows into a named type inside SQL was
 does not translate — the tests caught it — so the rows are materialised and named in memory, which
 costs nothing against the aggregation that produced them.
 
-### 6.3 Build the dashboard — `todo`
+### 6.3 Build the dashboard — `done`
 
-Graphically dense, per the answer: panels of small charts rather than a page of tables. Every panel
-links through to the trend page for its subject, so the dashboard is a way into the site rather than
-a terminus.
+`/` is now five panels of runs — points over ten games, goals over twenty, assists over ten, hits
+over a fortnight, and goalie save percentage over a fortnight — each row a name, the run, a
+sparkline and the multiple it represents, linking through to the trend that produced it.
 
-- **Ranked by departure from a player's own baseline, not by total** — question 11, answered: the
-  most interesting runs are what belongs here, and league leaders already have their own page after
-  6.1. So a fourth-liner with 8 points in 10 games outranks a star with 12, because the first is
-  news and the second is Tuesday. This needs a baseline per player — most naturally their own rate
-  across the season — and a guard for players with too little history to have one.
-- **Week by week is fast enough.** The answer explicitly allows it, which takes the pressure off
-  daily churn: the page does not need to manufacture movement on a night with two games.
-- **The dashboard changes with the data, not with the clock.** Its content moves because a trailing
-  window moves, and on an off day nothing changes. This matters in the off-season, when the newest
-  game is months old and every "last 10 games" panel is frozen: the page needs to say what it is
-  showing rather than presenting stale windows as current form. Week-by-week movement being
-  acceptable makes this easier — there is no reason to force variety that the games did not
-  produce.
-- **Sparklines, not full charts.** Chart.js is already vendored and `TrendDatasets` already builds
-  the shapes; a panel wants a small line with no axes, not the full trend chart.
+**The sparklines cost nothing extra.** `StreakLeader` carries the window's own per-game figures,
+which were already in hand when the board was computed; fetching them per player would have turned
+one query per panel into one per row on it. They are drawn as inline SVG rather than Chart.js:
+twenty-five canvases with their own animation loops is a great deal of browser for a line with no
+axes, no legend and no tooltip, and the SVG arrives with the page instead of after an interop
+round trip.
+
+**Cost was measured before deciding about caching, and the answer was not to.** The whole page
+renders warm in **235-270 ms**, five panels included — panels run in sequence because they share a
+scoped `DbContext`, so this is the honest serial number. That is tolerable without a cache, so none
+was added; the measurement is recorded against question 7 instead, where the open half is how much
+memory the cached results would occupy.
+
+Details worth keeping:
+
+- **The window travels with the link.** The trend pages now accept `?window=`, so clicking a
+  fourteen-day run lands on a fourteen-day average rather than silently switching to ten games and
+  showing different numbers than the ones that were clicked.
+- **A panel nobody qualifies for says so.** In a quiet week most of them are empty, and on a short
+  season a twenty-game window cannot be filled at all — which is exactly what the seeded UI test
+  exercises.
+- **A flat run sits on the midline** rather than at the top. There is no range to scale against, and
+  dividing by zero span would have put every point at full height, reading as "off the chart" when
+  it means "steady".
+- **Sparklines are the first thing dropped below 420px**, where a name and a number still say what
+  happened.
+
+Verified against the live database: Soderblom at 3.6x his rate leads the points panel, and McDavid
+appears nowhere — which is the whole point of the page. Six UI tests cover the panels, the empty
+state, the link-through and the window travelling with it.
+
+**A test assertion had to be weakened, and the reason is worth recording.** Asserting the sparkline
+was *visible* failed: the seeded player scores three every night, so the line is perfectly flat, and
+a zero-height box is invisible to Playwright while being on screen and correct. The test now counts
+the vertices instead — one per game in the window — which is the stronger claim anyway.
 
 ### 6.4 Off-season and thin-data behaviour — `todo`
 

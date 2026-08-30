@@ -21,6 +21,12 @@ namespace Blueline.Core.Dtos;
 /// three times the usual rate, and a difference for a rate, where .015 means fifteen points of
 /// save percentage above normal. The board says which it is.
 /// </param>
+/// <param name="Recent">
+/// The window's own per-game figures, oldest first, for drawing the shape of the run.
+///
+/// Carried on the leader rather than fetched per subject: the rows were already in hand when the
+/// board was built, and asking again would turn one query per panel into one per player on it.
+/// </param>
 public record StreakLeader(
     int SubjectId,
     string SubjectName,
@@ -30,7 +36,8 @@ public record StreakLeader(
     double Total,
     double PerGame,
     double Baseline,
-    double Lift);
+    double Lift,
+    IReadOnlyList<double> Recent);
 
 /// <summary>
 /// A ranked set of runs for one stat over one window — the unit a dashboard panel shows.

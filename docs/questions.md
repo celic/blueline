@@ -45,6 +45,10 @@ not enormous, but it is paid on the page every visitor lands on first, and every
 recomputing figures that only change when a game is ingested. What is still unmeasured is the size
 of the cached results, which is the half of the question you actually asked.
 
+**And the dashboard was built without one.** The whole page renders warm in 235-270 ms with its five
+panels, which is tolerable, so no cache was added on the strength of a guess. The case for caching
+is now about what happens under more than one visitor at a time, not about the page being slow.
+
 ---
 
 ## Settled

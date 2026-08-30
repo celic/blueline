@@ -25,6 +25,8 @@ with no warnings.
 
 ## What it does
 
+- **A home page of runs, not totals** — the players furthest above their own usual rate over a
+  trailing window, each drawn as a sparkline and linking through to the trend behind it.
 - **Season leaders** for points, goals, hits, blocks, time on ice and more.
 - **Player trends** — cumulative totals, or per-game values with a rolling average over a window
   you choose, counted either in games or in days. Search any player in the league and overlay up
