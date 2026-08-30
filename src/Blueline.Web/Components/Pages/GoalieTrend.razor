@@ -69,16 +69,12 @@ else
             </div>
         }
 
-        <div class="field">
-            <label for="compare">Compare with</label>
-            <select id="compare" value="" @key="_compareKey" @onchange="OnCompareSelected">
-                <option value="">Add a goalie…</option>
-                @foreach (var candidate in _candidates.Where(c => c.Id != PlayerId && _comparisons.All(x => x.SubjectId != c.Id)))
-                {
-                    <option value="@candidate.Id">@candidate.FullName (@Goalies.FormatSavePctg(candidate.SavePctg))</option>
-                }
-            </select>
-        </div>
+        <ComparePicker Label="Compare with"
+                       Placeholder="Search goalies…"
+                       Search="SearchComparisonsAsync"
+                       OnSelected="AddComparisonAsync"
+                       Capacity="ChartPalette.MaxComparisons"
+                       SelectedCount="_comparisons.Count" />
     </div>
 
     @if (_comparisons.Count > 0)
@@ -152,7 +148,6 @@ else
     [SupplyParameterFromQuery(Name = "stat")] public string? StatQuery { get; set; }
 
     private IReadOnlyList<SeasonSummary> _seasons = [];
-    private IReadOnlyList<GoalieSummary> _candidates = [];
     private readonly List<TrendSeries> _comparisons = [];
 
     private TrendSeries? _primary;
@@ -165,7 +160,6 @@ else
     private bool _cumulative = true;
     private GameScope _scope;
     private string _chartKey = "";
-    private int _compareKey;
 
     private bool _isRate => StatDefinition.FindGoalie(_stat)?.IsRate ?? false;
 
@@ -188,15 +182,20 @@ else
 
     private async Task LoadCandidatesAsync()
     {
-        _candidates = await Queries.SearchGoaliesAsync(_seasonId, null, "toi", 40, _scope);
-        _summary = _candidates.FirstOrDefault(c => c.Id == PlayerId);
+        // Every goalie who appeared, so the summary tiles work for a third-stringer too.
+        var all = await Queries.SearchGoaliesAsync(_seasonId, null, "toi", 200, _scope);
+        _summary = all.FirstOrDefault(c => c.Id == PlayerId);
+    }
 
-        // A goalie outside the top 40 by minutes still needs their own summary tiles.
-        if (_summary is null)
-        {
-            var all = await Queries.SearchGoaliesAsync(_seasonId, null, "toi", 200, _scope);
-            _summary = all.FirstOrDefault(c => c.Id == PlayerId);
-        }
+    private async Task<IReadOnlyList<ComparePicker.Option>> SearchComparisonsAsync(string term)
+    {
+        var matches = await Queries.SearchGoaliesAsync(_seasonId, term, "toi", 20, _scope);
+
+        return matches
+            .Where(m => m.Id != PlayerId && _comparisons.All(c => c.SubjectId != m.Id))
+            .Select(m => new ComparePicker.Option(
+                m.Id, m.FullName, $"{m.TeamAbbrev} · {Goalies.FormatSavePctg(m.SavePctg)}"))
+            .ToList();
     }
 
     private async Task OnScopeChanged(GameScope scope)
@@ -325,16 +324,14 @@ else
         BuildSpec();
     }
 
-    private async Task OnCompareSelected(ChangeEventArgs e)
+    private async Task AddComparisonAsync(int playerId)
     {
-        if (!int.TryParse(e.Value?.ToString(), out var id)) return;
-        if (_comparisons.Count >= 3) return;
+        if (_comparisons.Count >= ChartPalette.MaxComparisons) return;
 
-        var series = await Queries.GetGoalieTrendAsync(id, _seasonId, _stat, _window, _scope);
+        var series = await Queries.GetGoalieTrendAsync(playerId, _seasonId, _stat, _window, _scope);
         if (series is not null && series.Points.Count > 0)
         {
             _comparisons.Add(series);
-            _compareKey++;
             BuildSpec();
         }
     }
@@ -342,7 +339,6 @@ else
     private void RemoveComparison(int playerId)
     {
         _comparisons.RemoveAll(c => c.SubjectId == playerId);
-        _compareKey++;
         BuildSpec();
     }
 }

@@ -60,7 +60,28 @@ else
                 </select>
             </div>
         }
+
+        <ComparePicker Label="Compare with"
+                       Placeholder="Search teams…"
+                       Search="SearchComparisonsAsync"
+                       OnSelected="AddComparisonAsync"
+                       Capacity="ChartPalette.MaxComparisons"
+                       SelectedCount="_comparisons.Count" />
     </div>
+
+    @if (_comparisons.Count > 0)
+    {
+        <div class="compare-list">
+            @foreach (var (series, index) in _comparisons.Select((s, i) => (s, i)))
+            {
+                <span class="chip">
+                    <span class="swatch" style="background:@ChartPalette.For(index + 1)"></span>
+                    @series.SubjectName
+                    <button title="Remove" @onclick="() => RemoveComparison(series.SubjectId)">×</button>
+                </span>
+            }
+        </div>
+    }
 
     <div class="card">
         <div class="stat-row">
@@ -94,6 +115,7 @@ else
     [SupplyParameterFromQuery(Name = "season")] public int? SeasonQuery { get; set; }
 
     private IReadOnlyList<SeasonSummary> _seasons = [];
+    private readonly List<TrendSeries> _comparisons = [];
     private TrendSeries? _series;
     private ChartSpec? _spec;
     private string _record = "";
@@ -123,6 +145,47 @@ else
         var team = standings.FirstOrDefault(t => t.Id == TeamId);
         _record = team is null ? "" : $"{team.Wins}-{team.Losses}-{team.OvertimeLosses}";
 
+        // Comparisons are held by id, so re-fetch them whenever the stat or season moves.
+        var comparisonIds = _comparisons.Select(c => c.SubjectId).ToList();
+        _comparisons.Clear();
+        foreach (var id in comparisonIds)
+        {
+            var series = await Queries.GetTeamTrendAsync(id, _seasonId, _stat, _window, _scope);
+            if (series is not null) _comparisons.Add(series);
+        }
+
+        BuildSpec();
+    }
+
+    /// <summary>Two clubs' points pace on one chart is the natural way to read a playoff race.</summary>
+    private async Task<IReadOnlyList<ComparePicker.Option>> SearchComparisonsAsync(string term)
+    {
+        var teams = await Queries.GetTeamsAsync(_seasonId, _scope);
+
+        return teams
+            .Where(t => t.Id != TeamId && _comparisons.All(c => c.SubjectId != t.Id))
+            .Where(t => t.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                        || t.Abbrev.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .Select(t => new ComparePicker.Option(
+                t.Id, t.Name, _scope.HasStandingsPoints() ? $"{t.StandingsPoints} PTS" : $"{t.Wins}-{t.Losses}"))
+            .ToList();
+    }
+
+    private async Task AddComparisonAsync(int teamId)
+    {
+        if (_comparisons.Count >= ChartPalette.MaxComparisons) return;
+
+        var series = await Queries.GetTeamTrendAsync(teamId, _seasonId, _stat, _window, _scope);
+        if (series is not null && series.Points.Count > 0)
+        {
+            _comparisons.Add(series);
+            BuildSpec();
+        }
+    }
+
+    private void RemoveComparison(int teamId)
+    {
+        _comparisons.RemoveAll(c => c.SubjectId == teamId);
         BuildSpec();
     }
 
@@ -140,29 +203,41 @@ else
             return;
         }
 
-        var labels = _series.Points.Select(p => p.GameNumber.ToString()).ToList();
+        var all = new List<TrendSeries> { _series };
+        all.AddRange(_comparisons);
+
+        // The longest season sets the axis so every club stays aligned by game number.
+        var length = all.Max(s => s.Points.Count);
+        var labels = Enumerable.Range(1, length).Select(i => i.ToString()).ToList();
         var datasets = new List<ChartDataset>();
 
-        if (_cumulative)
+        for (var i = 0; i < all.Count; i++)
         {
-            datasets.Add(new ChartDataset(
-                _series.StatLabel,
-                _series.Points.Select(p => (double?)p.Cumulative).ToList(),
-                ChartPalette.For(0),
-                Fill: true));
-        }
-        else
-        {
-            datasets.Add(new ChartDataset(
-                "Per game",
-                _series.Points.Select(p => (double?)p.Value).ToList(),
-                "#475569",
-                Kind: "bar"));
+            var series = all[i];
+            var colour = ChartPalette.For(i);
 
-            datasets.Add(new ChartDataset(
-                $"{_window}-game average",
-                _series.Points.Select(p => p.RollingAverage).ToList(),
-                ChartPalette.For(0)));
+            if (_cumulative)
+            {
+                datasets.Add(new ChartDataset(
+                    all.Count == 1 ? series.StatLabel : series.SubjectName,
+                    Pad(series.Points.Select(p => (double?)p.Cumulative), length),
+                    colour,
+                    Fill: all.Count == 1));
+            }
+            else
+            {
+                // Overlapping bars are unreadable, so they stay only in the single-club view.
+                if (all.Count == 1)
+                {
+                    datasets.Add(new ChartDataset(
+                        "Per game", Pad(series.Points.Select(p => (double?)p.Value), length), "#475569", Kind: "bar"));
+                }
+
+                datasets.Add(new ChartDataset(
+                    all.Count == 1 ? $"{_window}-game average" : series.SubjectName,
+                    Pad(series.Points.Select(p => p.RollingAverage), length),
+                    colour));
+            }
         }
 
         var subtitles = _series.Points
@@ -179,7 +254,15 @@ else
             Precise: !_cumulative,
             Subtitles: subtitles);
 
-        _chartKey = $"{TeamId}-{_seasonId}-{_scope}-{_stat}-{_window}-{_cumulative}";
+        _chartKey = $"{TeamId}-{_seasonId}-{_scope}-{_stat}-{_window}-{_cumulative}-{_comparisons.Count}";
+    }
+
+    /// <summary>Pads a shorter run with nulls so every club stays on one x axis.</summary>
+    private static List<double?> Pad(IEnumerable<double?> values, int length)
+    {
+        var list = values.ToList();
+        while (list.Count < length) list.Add(null);
+        return list;
     }
 
     private async Task OnStatChanged(ChangeEventArgs e)

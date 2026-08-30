@@ -27,7 +27,8 @@ with no warnings.
 
 - **Season leaders** for points, goals, hits, blocks, time on ice and more.
 - **Player trends** — cumulative totals, or per-game values with a rolling average over a window
-  you choose. Up to three other players can be overlaid on the same chart.
+  you choose. Search any player in the league and overlay up to five of them on one chart. Teams
+  and goalies compare the same way.
 - **Goalie trends** — save percentage, goals-against average, saves, shots and goals against.
   Rates are combined by weighting each appearance by the shots faced, never by averaging the
   per-game percentages.
@@ -167,6 +168,7 @@ strain. Everything goes through EF Core, so moving to PostgreSQL is a provider s
 | `GET /api/stats` | Stats that can be charted |
 | `GET /api/players?season=&search=&take=` | Player search, ordered by points |
 | `GET /api/players/{id}/trend?season=&stat=&window=` | A skater's game-by-game trend |
+| `GET /api/players/trends?ids=1,2,3` | Several skaters at once, for comparison (also `/goalies/trends`, `/teams/trends`) |
 | `GET /api/goalies?season=&search=&stat=&take=` | Goalie leaders, with a minutes qualification on rates |
 | `GET /api/goalies/{id}/trend?season=&stat=&window=` | A goalie's game-by-game trend |
 | `GET /api/teams?season=` | Standings |

@@ -72,18 +72,12 @@ else
             </div>
         }
 
-        <div class="field">
-            <label for="compare">Compare with</label>
-            @* Keyed so the element is rebuilt after each pick; otherwise the browser keeps the
-               old selection visible even though the chosen player has moved into a chip. *@
-            <select id="compare" value="" @key="_compareKey" @onchange="OnCompareSelected">
-                <option value="">Add a player…</option>
-                @foreach (var candidate in _candidates.Where(c => c.Id != PlayerId && _comparisons.All(x => x.SubjectId != c.Id)))
-                {
-                    <option value="@candidate.Id">@candidate.FullName (@candidate.Points P)</option>
-                }
-            </select>
-        </div>
+        <ComparePicker Label="Compare with"
+                       Placeholder="Search players…"
+                       Search="SearchComparisonsAsync"
+                       OnSelected="AddComparisonAsync"
+                       Capacity="ChartPalette.MaxComparisons"
+                       SelectedCount="_comparisons.Count" />
     </div>
 
     @if (_comparisons.Count > 0)
@@ -159,7 +153,6 @@ else
     private enum ViewMode { Cumulative, PerGame }
 
     private IReadOnlyList<SeasonSummary> _seasons = [];
-    private IReadOnlyList<PlayerSummary> _candidates = [];
     private readonly List<TrendSeries> _comparisons = [];
 
     private TrendSeries? _primary;
@@ -174,9 +167,6 @@ else
 
     // Forces the chart component to rebuild rather than patch a stale canvas.
     private string _chartKey = "";
-
-    // Bumped whenever the comparison list changes, to reset the "Compare with" dropdown.
-    private int _compareKey;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -202,10 +192,23 @@ else
         await LoadAsync();
     }
 
-    private async Task LoadCandidatesAsync()
+    private async Task LoadCandidatesAsync() =>
+        _headshotUrl = (await Queries.GetPlayerAsync(PlayerId))?.HeadshotUrl;
+
+    /// <summary>
+    /// Searches the whole league rather than offering a fixed slice of it. The previous dropdown
+    /// listed the top 40 scorers, so 1,023 players — every depth forward, most defencemen — could
+    /// not be compared at all, and nothing on screen said so.
+    /// </summary>
+    private async Task<IReadOnlyList<ComparePicker.Option>> SearchComparisonsAsync(string term)
     {
-        _candidates = await Queries.SearchPlayersAsync(_seasonId, null, 40, _scope);
-        _headshotUrl = _candidates.FirstOrDefault(c => c.Id == PlayerId)?.HeadshotUrl;
+        var matches = await Queries.SearchPlayersAsync(_seasonId, term, 20, _scope);
+
+        return matches
+            .Where(m => m.Id != PlayerId && _comparisons.All(c => c.SubjectId != m.Id))
+            .Select(m => new ComparePicker.Option(
+                m.Id, m.FullName, $"{m.TeamAbbrev} · {m.Points} P"))
+            .ToList();
     }
 
     private async Task OnScopeChanged(GameScope scope)
@@ -340,16 +343,14 @@ else
         BuildSpec();
     }
 
-    private async Task OnCompareSelected(ChangeEventArgs e)
+    private async Task AddComparisonAsync(int playerId)
     {
-        if (!int.TryParse(e.Value?.ToString(), out var id)) return;
-        if (_comparisons.Count >= 3) return;
+        if (_comparisons.Count >= ChartPalette.MaxComparisons) return;
 
-        var series = await Queries.GetPlayerTrendAsync(id, _seasonId, _stat, _window, _scope);
+        var series = await Queries.GetPlayerTrendAsync(playerId, _seasonId, _stat, _window, _scope);
         if (series is not null && series.Points.Count > 0)
         {
             _comparisons.Add(series);
-            _compareKey++;
             BuildSpec();
         }
     }
@@ -357,7 +358,6 @@ else
     private void RemoveComparison(int playerId)
     {
         _comparisons.RemoveAll(c => c.SubjectId == playerId);
-        _compareKey++;
         BuildSpec();
     }
 

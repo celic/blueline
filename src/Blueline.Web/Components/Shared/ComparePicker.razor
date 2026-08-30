@@ -1,0 +1,94 @@
+@*
+    Search-driven picker for adding a subject to a comparison.
+
+    Replaces a fixed dropdown, which could only ever offer a slice of the league: with 1,063
+    players a list is either truncated — silently hiding almost everyone — or unusably long.
+*@
+
+<div class="field compare-picker">
+    <label for="@_id">@Label</label>
+    <input id="@_id"
+           type="search"
+           autocomplete="off"
+           placeholder="@(AtCapacity ? $"Comparing {Capacity} already" : Placeholder)"
+           disabled="@AtCapacity"
+           value="@_term"
+           @oninput="OnTermChanged" />
+
+    @if (!AtCapacity && _results.Count > 0)
+    {
+        <ul class="compare-results">
+            @foreach (var option in _results)
+            {
+                <li>
+                    <button type="button" @onclick="() => SelectAsync(option.Id)">
+                        <span>@option.Label</span>
+                        @if (option.Detail is not null)
+                        {
+                            <span class="muted">@option.Detail</span>
+                        }
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+    else if (!AtCapacity && _searched && _term.Length >= MinimumTermLength && _results.Count == 0)
+    {
+        <ul class="compare-results">
+            <li class="empty-result muted">Nothing matches "@_term".</li>
+        </ul>
+    }
+</div>
+
+@code {
+    /// <summary>One selectable subject: an identifier, a name, and an optional stat to judge it by.</summary>
+    public record Option(int Id, string Label, string? Detail = null);
+
+    [Parameter] public string Label { get; set; } = "Compare with";
+    [Parameter] public string Placeholder { get; set; } = "Search…";
+
+    /// <summary>Runs the search. Callers filter out the subject already on screen.</summary>
+    [Parameter, EditorRequired] public Func<string, Task<IReadOnlyList<Option>>> Search { get; set; } = default!;
+
+    [Parameter, EditorRequired] public EventCallback<int> OnSelected { get; set; }
+
+    /// <summary>How many comparisons the chart can take before it stops being readable.</summary>
+    [Parameter] public int Capacity { get; set; }
+
+    [Parameter] public int SelectedCount { get; set; }
+
+    /// <summary>Below this, a search matches most of the league and the list is just noise.</summary>
+    private const int MinimumTermLength = 2;
+
+    private readonly string _id = $"compare-{Guid.NewGuid():N}";
+    private string _term = "";
+    private bool _searched;
+    private IReadOnlyList<Option> _results = [];
+
+    private bool AtCapacity => SelectedCount >= Capacity;
+
+    private async Task OnTermChanged(ChangeEventArgs e)
+    {
+        _term = e.Value?.ToString() ?? "";
+
+        if (_term.Trim().Length < MinimumTermLength)
+        {
+            _results = [];
+            _searched = false;
+            return;
+        }
+
+        _results = await Search(_term.Trim());
+        _searched = true;
+    }
+
+    private async Task SelectAsync(int id)
+    {
+        await OnSelected.InvokeAsync(id);
+
+        // Clear rather than leave the chosen name sitting in the box: it has moved into a chip.
+        _term = "";
+        _results = [];
+        _searched = false;
+    }
+}

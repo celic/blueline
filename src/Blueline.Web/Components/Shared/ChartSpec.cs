@@ -20,8 +20,19 @@ public record ChartDataset(
 
 public static class ChartPalette
 {
-    /// <summary>Distinguishable at a glance and legible on the dark surface.</summary>
-    public static readonly string[] Series = ["#38bdf8", "#f472b6", "#facc15", "#4ade80"];
+    /// <summary>
+    /// Distinguishable at a glance and legible on the dark surface. Six is a deliberate ceiling
+    /// rather than an arbitrary one: past roughly this many lines a trend chart stops being
+    /// readable however good the colours are, so the comparison cap is set to match.
+    /// </summary>
+    public static readonly string[] Series =
+        ["#38bdf8", "#f472b6", "#facc15", "#4ade80", "#c084fc", "#fb923c"];
+
+    /// <summary>Subjects one chart can carry, the primary included.</summary>
+    public static int MaxSeries => Series.Length;
+
+    /// <summary>Comparisons that can be added alongside the primary subject.</summary>
+    public const int MaxComparisons = 5;
 
     public static string For(int index) => Series[index % Series.Length];
 }

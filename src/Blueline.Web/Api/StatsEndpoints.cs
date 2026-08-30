@@ -1,6 +1,7 @@
 using Blueline.Core.Dtos;
 using Blueline.Data.Queries;
 using Blueline.Ingestion;
+using Blueline.Web.Components.Shared;
 
 namespace Blueline.Web.Api;
 
@@ -64,6 +65,89 @@ public static class StatsEndpoints
                     : Results.Ok(series);
             })
             .WithSummary("A skater's game-by-game values, cumulative total and rolling average.");
+
+        // Comparison endpoints. Separate from the single-subject ones rather than a parameter on
+        // them, so the response is always an array and an existing consumer is unaffected.
+        api.MapGet("/players/trends", async (
+                StatsQueryService queries,
+                CancellationToken ct,
+                string? ids = null,
+                int? season = null,
+                string stat = "points",
+                int window = 10,
+                string? scope = null) =>
+            {
+                var playerIds = ParseIds(ids);
+                if (playerIds.Count == 0) return Results.BadRequest(new { message = "Pass ids=1,2,3." });
+
+                var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
+                if (seasonId is null) return Results.Ok(Array.Empty<TrendSeries>());
+
+                var series = new List<TrendSeries>();
+                foreach (var id in playerIds)
+                {
+                    var trend = await queries.GetPlayerTrendAsync(
+                        id, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
+                    if (trend is not null) series.Add(trend);
+                }
+
+                return Results.Ok(series);
+            })
+            .WithSummary("Several skaters' trends in one call, aligned on the same stat and season.");
+
+        api.MapGet("/goalies/trends", async (
+                StatsQueryService queries,
+                CancellationToken ct,
+                string? ids = null,
+                int? season = null,
+                string stat = "savePctg",
+                int window = 10,
+                string? scope = null) =>
+            {
+                var goalieIds = ParseIds(ids);
+                if (goalieIds.Count == 0) return Results.BadRequest(new { message = "Pass ids=1,2,3." });
+
+                var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
+                if (seasonId is null) return Results.Ok(Array.Empty<TrendSeries>());
+
+                var series = new List<TrendSeries>();
+                foreach (var id in goalieIds)
+                {
+                    var trend = await queries.GetGoalieTrendAsync(
+                        id, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
+                    if (trend is not null) series.Add(trend);
+                }
+
+                return Results.Ok(series);
+            })
+            .WithSummary("Several goalies' trends in one call.");
+
+        api.MapGet("/teams/trends", async (
+                StatsQueryService queries,
+                CancellationToken ct,
+                string? ids = null,
+                int? season = null,
+                string stat = "points",
+                int window = 10,
+                string? scope = null) =>
+            {
+                var teamIds = ParseIds(ids);
+                if (teamIds.Count == 0) return Results.BadRequest(new { message = "Pass ids=1,2,3." });
+
+                var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
+                if (seasonId is null) return Results.Ok(Array.Empty<TrendSeries>());
+
+                var series = new List<TrendSeries>();
+                foreach (var id in teamIds)
+                {
+                    var trend = await queries.GetTeamTrendAsync(
+                        id, seasonId.Value, stat, Clamp(window, 41), GameScopes.Parse(scope), ct);
+                    if (trend is not null) series.Add(trend);
+                }
+
+                return Results.Ok(series);
+            })
+            .WithSummary("Several teams' trends in one call.");
 
         api.MapGet("/goalies", async (
                 StatsQueryService queries,
@@ -170,4 +254,22 @@ public static class StatsEndpoints
 
     /// <summary>Keeps caller-supplied sizes inside sane bounds.</summary>
     private static int Clamp(int value, int max) => Math.Clamp(value, 1, max);
+
+    /// <summary>
+    /// Parses a comma-separated id list, ignoring anything unparseable rather than rejecting the
+    /// whole request. Capped at the number of series a chart can carry, since that is what the
+    /// caller can meaningfully plot.
+    /// </summary>
+    internal static List<int> ParseIds(string? ids)
+    {
+        if (string.IsNullOrWhiteSpace(ids)) return [];
+
+        return ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(part => int.TryParse(part, out var id) ? id : (int?)null)
+            .Where(id => id is not null)
+            .Select(id => id!.Value)
+            .Distinct()
+            .Take(ChartPalette.MaxSeries)
+            .ToList();
+    }
 }

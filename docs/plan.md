@@ -63,36 +63,30 @@ trend page explains why a points line flattens if you chart points across the pl
 Still open, deliberately: playoff trends are plotted by game number like everything else, which
 hides the long gaps between rounds. Tracked as its own item now — see 1.4.
 
-### 1.3 Extend multi-player comparison — `todo`
+### 1.3 Extend multi-player comparison — `done`
 
-Overlaying several players' stats on one chart **is already built and working** on the player
-page (`src/Blueline.Web/Components/Pages/PlayerTrend.razor`): pick players from "Compare with",
-they appear as removable coloured chips, and their series are drawn on the same axes in both
-cumulative and per-game views. Shorter seasons are padded with nulls so every line stays aligned
-by game number, and the per-game view drops the raw bars once more than one player is shown,
-since overlapping bars are unreadable.
+Four of the five gaps are closed.
 
-What is missing is reach, not the mechanism:
+- **The whole league is reachable now.** The fixed dropdown is gone, replaced by a shared
+  `ComparePicker` that searches. This was the real defect: the old list offered the top 40 scorers,
+  so 1,023 players could not be compared at all and nothing on screen said so. Verified by
+  comparing McDavid against Yakov Trenin, a 23-point checker who could never have appeared in it.
+- **The cap is 5 comparisons, six series in all**, matching an extended palette. Six is a
+  deliberate ceiling: past roughly that many lines a trend chart stops being readable however good
+  the colours are.
+- **Teams can be compared**, which they could not at all before — `GetTeamTrendAsync` supported it
+  unchanged, only the UI was missing. Colorado against Carolina reads their points pace side by
+  side.
+- **The API can express it**: `/api/players/trends?ids=`, `/api/goalies/trends` and
+  `/api/teams/trends`. These are separate endpoints rather than a parameter on the single-subject
+  ones, so the response is always an array and existing consumers are untouched. Ids are
+  de-duplicated, unparseable entries dropped rather than failing the request, and the list capped
+  at what a chart can carry.
 
-- **Only the top 40 scorers can be selected.** Both calls that build the candidate list are
-  `SearchPlayersAsync(_seasonId, null, 40)`, so 1,023 of the league's 1,063 players are silently
-  absent from the picker — every depth forward, most defencemen, every goalie. This is the real
-  limitation and the one worth fixing first. `SearchPlayersAsync` already accepts a search term;
-  the picker needs to be a search box rather than a fixed dropdown.
-- **Capped at 3 comparisons** (4 lines total), matching the 4-colour palette in
-  `ChartSpec.cs`. Raising the cap means extending `ChartPalette.Series` with colours that stay
-  distinguishable on the dark background — past roughly 6 lines a chart stops being readable, so
-  this should be a deliberate ceiling rather than unbounded.
-- **Same season only.** Comparisons re-fetch using the page's `_seasonId`, so a player cannot be
-  compared against their own earlier season. Career-arc comparison ("McDavid at 24 vs at 22") is
-  a different and arguably more interesting question, and needs the compared series to carry
-  their own season.
-- **Teams cannot be compared at all.** `TeamTrend.razor` has no comparison UI, though
-  `GetTeamTrendAsync` would support it unchanged — two clubs' points pace on one chart is the
-  natural way to read a playoff race.
-- **The API cannot express it.** `/api/players/{id}/trend` returns one subject, so an external
-  consumer has to make N calls and align the series itself. A `?compare=id,id` parameter, or an
-  endpoint accepting several ids, would let the API answer the same question the UI does.
+Still open: **cross-season comparison**. Comparisons re-fetch using the page's season, so a player
+cannot be charted against their own earlier year. "McDavid at 24 against McDavid at 22" is a
+genuinely different question — each series needs to carry its own season, and the x axis has to
+decide whether it aligns by game number or by age. Worth its own item if wanted.
 
 ### 1.4 Offer a date x axis as well as game number — `todo`
 
