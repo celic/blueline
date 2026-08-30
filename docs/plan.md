@@ -564,14 +564,27 @@ Leaders moves off the home page to a page of its own.
 
 Sequenced so each step is useful on its own.
 
-### 6.1 Move Leaders off `/` — `todo`
+### 6.1 Move Leaders off `/` — `done`
 
-Mechanical, and worth doing first so the dashboard has an empty page to grow into rather than being
-grafted onto a working one.
+`Home.razor` is now `Leaders.razor` at `/leaders`, and `/` is a landing page of its own — which is
+what group 6 needed: an empty page for the dashboard to grow into rather than a working table to be
+grafted onto.
 
-`Home.razor` becomes `Leaders.razor` at `/leaders`, and the nav's first entry points there. Two
-details not to lose: `/` must keep resolving — a bookmark landing on a 404 is the visible cost of
-this move — and the UI tests navigate to `/` expecting leaders, so they move with it.
+**Thin, but not a placeholder.** A root that said "coming soon" would be worse than what it
+replaced. It carries the four sections and a line of real numbers — 2,792 games across two seasons,
+2024-25 to 2025-26 — read from the database rather than written into the markup, so it says
+something true about the deployment it is running on and shows the empty state when there is
+nothing stored.
+
+The nav gained a Home entry rather than relying on the brand alone; `Match="NavLinkMatch.All"`
+keeps it from lighting up on every page, since every path starts with `/`.
+
+Two UI tests navigated to `/` expecting leaders and now go to `/leaders`. A new one clicks from the
+root through to the leaders table, which is the part of this move a reader would actually notice —
+the old bookmark still resolving. 26 UI tests pass.
+
+Verified in a browser at both routes: the landing page renders its four cards and the season line,
+and `/leaders` still lists McDavid at 138 points.
 
 ### 6.2 Compute streaks — `todo`
 

@@ -7,7 +7,8 @@ namespace Blueline.UiTests;
 [Parallelizable(ParallelScope.Self)]
 public class PageLoadTests : BluelinePageTest
 {
-    [TestCase("/", "Season leaders")]
+    [TestCase("/", "Blueline")]
+    [TestCase("/leaders", "Season leaders")]
     [TestCase("/players", "Players")]
     [TestCase("/goalies", "Goalies")]
     [TestCase("/teams", "Teams")]
@@ -21,9 +22,23 @@ public class PageLoadTests : BluelinePageTest
     }
 
     [Test]
+    public async Task The_landing_page_reaches_the_leaders_it_used_to_be()
+    {
+        // Leaders moved off "/" and the root must still resolve: an old bookmark landing on a
+        // 404 is the visible cost of that move, and the only part of it a reader would notice.
+        await GoToAsync("/");
+
+        await Page.GetByRole(AriaRole.Link, new() { Name = "Leaders", Exact = true }).First.ClickAsync();
+
+        await Expect(Page).ToHaveURLAsync(new Regex("/leaders"));
+        await Expect(Page.Locator("h1")).ToHaveTextAsync("Season leaders");
+        AssertNoConsoleErrors();
+    }
+
+    [Test]
     public async Task The_leaders_page_lists_the_seeded_players()
     {
-        await GoToAsync("/");
+        await GoToAsync("/leaders");
 
         await Expect(Page.GetByRole(AriaRole.Link, new() { Name = BluelineAppFixture.Seed.TopScorerName }))
             .ToBeVisibleAsync();
@@ -33,7 +48,7 @@ public class PageLoadTests : BluelinePageTest
     [Test]
     public async Task Navigation_moves_between_sections_without_a_full_reload()
     {
-        await GoToAsync("/");
+        await GoToAsync("/leaders");
 
         await Page.GetByRole(AriaRole.Link, new() { Name = "Goalies", Exact = true }).ClickAsync();
 

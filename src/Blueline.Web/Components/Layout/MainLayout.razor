@@ -3,7 +3,9 @@
 <header class="topbar">
     <a class="brand" href="/"><span class="brand-mark"></span>Blueline</a>
     <nav class="nav">
-        <NavLink href="/" Match="NavLinkMatch.All">Leaders</NavLink>
+        @* Match.All so the brand's own destination does not light up on every page. *@
+        <NavLink href="/" Match="NavLinkMatch.All">Home</NavLink>
+        <NavLink href="/leaders">Leaders</NavLink>
         <NavLink href="/players">Players</NavLink>
         <NavLink href="/goalies">Goalies</NavLink>
         <NavLink href="/teams">Teams</NavLink>

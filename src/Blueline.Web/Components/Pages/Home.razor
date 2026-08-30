@@ -1,15 +1,22 @@
 @page "/"
 @rendermode InteractiveServer
 @inject StatsQueryService Queries
-@inject NavigationManager Nav
-@inject IOptions<DisplayOptions> Display
-@using Microsoft.Extensions.Options
 
-<PageTitle>Blueline — Season Leaders</PageTitle>
+@*
+    The landing page. Deliberately thin for now: this is where the streaks dashboard goes
+    (plan.md group 6), and it was given its own empty page rather than being grafted onto the
+    leaders table that used to live here.
+
+    Thin is not the same as unfinished, though — a visitor arriving at the root should be able to
+    reach anything the site does and see that it holds real data, which is what this covers until
+    the panels land.
+*@
+
+<PageTitle>Blueline — Hockey stats as trends</PageTitle>
 
 <div class="page-head">
-    <h1>Season leaders</h1>
-    <p>Pick a player to see how their season actually unfolded, game by game.</p>
+    <h1>Blueline</h1>
+    <p>Hockey statistics as trends over time — how a season actually unfolded, game by game.</p>
 </div>
 
 @if (_seasons.Count == 0)
@@ -20,111 +27,42 @@
 }
 else
 {
-    <div class="controls">
-        <div class="field">
-            <label for="season">Season</label>
-            <select id="season" value="@_seasonId" @onchange="OnSeasonChanged">
-                @foreach (var season in _seasons)
-                {
-                    <option value="@season.SeasonId">@season.Label</option>
-                }
-            </select>
-        </div>
-        <ScopePicker Scope="_scope" ScopeChanged="OnScopeChanged" />
-        <div class="field">
-            <label for="stat">Stat</label>
-            <select id="stat" value="@_stat" @onchange="OnStatChanged">
-                @foreach (var stat in StatDefinition.Skater)
-                {
-                    <option value="@stat.Key">@stat.Label</option>
-                }
-            </select>
-        </div>
+    <div class="tiles">
+        <a class="card tile" href="/leaders">
+            <h2>Leaders</h2>
+            <p class="muted">Who is ahead, for any stat the box score carries.</p>
+        </a>
+        <a class="card tile" href="/players">
+            <h2>Players</h2>
+            <p class="muted">Search any skater and chart their season. Overlay up to five.</p>
+        </a>
+        <a class="card tile" href="/goalies">
+            <h2>Goalies</h2>
+            <p class="muted">Save percentage and workload, weighted by shots rather than averaged.</p>
+        </a>
+        <a class="card tile" href="/teams">
+            <h2>Teams</h2>
+            <p class="muted">Standings, and how each club banked its points across the year.</p>
+        </a>
     </div>
 
-    <div class="card">
-        <div class="table-scroll">
-            <table>
-                <thead>
-                    <tr>
-                        <th class="rank">#</th>
-                        <th>Player</th>
-                        <th>Pos</th>
-                        <th>Team</th>
-                        <th class="num">GP</th>
-                        <th class="num">@_statLabel</th>
-                        <th class="num">Per game</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var row in _leaders)
-                    {
-                        <tr>
-                            <td class="rank">@row.Rank</td>
-                            <td>
-                                <a href="/players/@row.PlayerId?season=@_seasonId&stat=@_stat">
-                                    @if (row.HeadshotUrl is not null)
-                                    {
-                                        <img class="headshot" src="@row.HeadshotUrl" alt="" loading="lazy" />
-                                    }
-                                    @row.FullName
-                                </a>
-                            </td>
-                            <td><span class="pill">@row.Position</span></td>
-                            <td>@row.TeamAbbrev</td>
-                            <td class="num muted">@row.GamesPlayed</td>
-                            <td class="num"><strong>@Format(row.Value)</strong></td>
-                            <td class="num muted">@Format(row.GamesPlayed == 0 ? 0 : row.Value / row.GamesPlayed, 2)</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+    <div class="card" style="margin-top:1.25rem">
+        <p class="muted" style="margin:0">
+            @_gamesStored.ToString("N0") games stored across
+            @(_seasons.Count == 1 ? "one season" : $"{_seasons.Count} seasons"),
+            @_seasons[^1].Label to @_seasons[0].Label.
+            <a href="/data">Where the data came from</a>.
+        </p>
     </div>
 }
 
 @code {
     private IReadOnlyList<SeasonSummary> _seasons = [];
-    private IReadOnlyList<LeaderRow> _leaders = [];
-    private int _seasonId;
-    private string _stat = "points";
-    private GameScope _scope;
-
-    private string _statLabel => StatDefinition.FindSkater(_stat)?.Unit ?? "Value";
+    private int _gamesStored;
 
     protected override async Task OnInitializedAsync()
     {
         _seasons = await Queries.GetSeasonsAsync();
-        if (_seasons.Count == 0) return;
-
-        _seasonId = _seasons[0].SeasonId;
-        _scope = Display.Value.DefaultGameScope;
-        await LoadAsync();
+        _gamesStored = _seasons.Sum(s => s.GameCount);
     }
-
-    private async Task LoadAsync() => _leaders = await Queries.GetLeadersAsync(_seasonId, _stat, 25, _scope);
-
-    private async Task OnScopeChanged(GameScope scope)
-    {
-        _scope = scope;
-        await LoadAsync();
-    }
-
-    private async Task OnSeasonChanged(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var seasonId)) _seasonId = seasonId;
-        await LoadAsync();
-    }
-
-    private async Task OnStatChanged(ChangeEventArgs e)
-    {
-        _stat = e.Value?.ToString() ?? "points";
-        await LoadAsync();
-    }
-
-    // Whole numbers for counting stats, decimals only where they carry meaning.
-    private static string Format(double value, int decimals = 1) =>
-        Math.Abs(value % 1) < 0.001 && decimals == 1
-            ? value.ToString("0")
-            : value.ToString($"F{decimals}");
 }
