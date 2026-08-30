@@ -1,8 +1,9 @@
 @page "/data"
 @rendermode InteractiveServer
 @inject StatsQueryService Queries
-@inject NhlIngestionService Ingestion
+@inject IOptions<IngestionOptions> Ingestion
 @using Blueline.Ingestion
+@using Microsoft.Extensions.Options
 
 <PageTitle>Data — Blueline</PageTitle>
 
@@ -89,19 +90,27 @@
         }
     }
 
+    @* Says which of the two arrangements is actually in force, rather than describing one of
+       them and hoping. A page claiming games load daily on a deployment with no scheduled job
+       is worse than saying nothing: the last-run time above would look like a glitch instead
+       of the symptom it is. *@
     <p class="muted" style="margin-top:.5rem">
-        New games load automatically once a day. Each run re-reads the last few days so that
-        corrections the league makes after a game are picked up.
+        @if (Ingestion.Value.DailyJobEnabled)
+        {
+            <text>
+                New games load automatically once a day. Each run re-reads the last few days so
+                that corrections the league makes after a game are picked up.
+            </text>
+        }
+        else
+        {
+            <text>
+                New games arrive from a scheduled job run outside the site, against this same
+                database. Nothing here triggers collection; if the run above looks stale, the
+                schedule is what to check.
+            </text>
+        }
     </p>
-
-    <button class="link" disabled="@_running" @onclick="RunNowAsync">
-        @(_running ? "Refreshing…" : "Refresh now")
-    </button>
-
-    @if (_message is not null)
-    {
-        <p class="muted">@_message</p>
-    }
 </div>
 
 <div class="card">
@@ -128,8 +137,6 @@
 @code {
     private IReadOnlyList<SeasonSummary> _seasons = [];
     private IngestionStatusDto? _status;
-    private bool _running;
-    private string? _message;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -137,28 +144,5 @@
     {
         _seasons = await Queries.GetSeasonsAsync();
         _status = await Queries.GetIngestionStatusAsync();
-    }
-
-    private async Task RunNowAsync()
-    {
-        _running = true;
-        _message = null;
-
-        try
-        {
-            var count = await Ingestion.IngestRecentAsync(DateOnly.FromDateTime(DateTime.UtcNow), 3);
-            _message = count == 0
-                ? "No completed games in the last few days."
-                : $"Refreshed {count} game(s).";
-        }
-        catch (Exception ex)
-        {
-            _message = $"Refresh failed: {ex.Message}";
-        }
-        finally
-        {
-            _running = false;
-            await LoadAsync();
-        }
     }
 }

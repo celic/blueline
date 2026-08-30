@@ -9,8 +9,8 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 than merely confirming it, and they are the four `todo` items worth reading first:
 
 - **The combined regular-season + playoffs scope has gone** — 1.5, done.
-- **The ingestion trigger endpoint and the Refresh button have to go** — 2.6, which also raises a
-  question the answer does not settle.
+- **The ingestion trigger endpoint and the Refresh button have gone** — 2.6, done, though the
+  question it raised is still open (10).
 - **The home page becomes a streaks dashboard and Leaders moves off `/`** — group 6. This is the
   largest piece of new work in the document, and it needs a days-based window that does not exist
   yet (1.6).
@@ -207,7 +207,8 @@ Two things measurement did turn up:
 
 Severity is lower than this item originally implied: under WAL, plain reads never contend, and the
 only writers are the daily job and the Data page's "Refresh now" button. The stall needs those two
-to overlap.
+to overlap — and since 2.6 removed the button, it needs two scheduled runs to overlap, which is
+harder still. Lowering `CommandTimeout` is no longer worth doing.
 
 `SqliteConnectionInterceptor` now applies `journal_mode=WAL` (explicit rather than trusting a
 provider default that could shift), `busy_timeout` and `synchronous=NORMAL` to every SQLite
@@ -321,44 +322,44 @@ every interaction is a round trip and nothing is synchronous. No explicit sleeps
 
 Note for CI: `playwright.ps1 install chromium` must run once, and it downloads roughly 300 MB.
 
-### 2.6 Remove the ingestion trigger, and move the schedule outside the app — `todo`
+### 2.6 Remove the ingestion trigger, and move the schedule outside the app — `done`
 
-Question 6 answered: there should be no API that triggers data collection; a cron job on a separate
-system should insert into the database instead.
+`POST /api/ingestion/run` and the Data page's "Refresh now" button are gone, and the `/api`
+surface is now read-only. Removing them was worth doing whatever replaced them: the endpoint was
+unauthenticated, so any visitor could make the site fetch from the league's API as often as they
+liked.
 
-The removals are straightforward and should happen regardless of what replaces them, because today
-`POST /api/ingestion/run` is **unauthenticated** — any visitor can make the site fetch from the
-league's API, as many times as they like:
+Scheduling is out of the site as well, per question 6. `Ingestion:DailyJobEnabled` now defaults to
+**off**, and the schedule is a cron entry or scheduled task invoking the CLI's `daily` verb against
+the same database — recipes for Linux and Windows are in the README, alongside the compose file.
+Question 10 remains open only on *where* that job runs; the reading built here is option 1, the
+same host sharing the volume, because a SQLite file reached across a network share is the one
+deployment SQLite warns against.
 
-- `POST /api/ingestion/run` in `StatsEndpoints.cs`.
-- The "Refresh now" button on the Data page, which calls `IngestRecentAsync` directly.
-- The Data page keeps showing ingestion *status*. Reading what happened is not triggering it.
+**Turning the schedule off exposed a coupling that would have been a bad first-boot bug.** Seeding
+an empty database lived behind the same `DailyJobEnabled` check as the daily pass, so a deployment
+following the new advice — schedule outside, switch the in-process job off — would have come up
+permanently empty, having silently skipped the season load, with the site looking merely
+unpopulated rather than misconfigured. The two are now separate: seeding is about the site having
+anything to serve and is gated only by `SeedSeasonId`, while `DailyJobEnabled` governs the schedule
+alone. `SeedOnStartupTests` pins all three cases.
 
-Removing the button also settles the loose end left at 2.1: with it gone, the only writer is
-whatever runs on a schedule, so a contended write needs two scheduled runs to overlap rather than a
-visitor clicking during one. Lowering `CommandTimeout` stops being worth doing.
+**The Data page reports which arrangement is in force** rather than describing one and hoping. It
+previously said "new games load automatically once a day", which on a deployment with no scheduled
+job would have been a page stating something false — and worse, it would have made a stale
+last-run time read as a glitch rather than as the symptom it is.
 
-**What replaces it is not settled, and the answer contains a tension worth surfacing before I
-build.** "A separate system that just inserts data into the existing database" does not fit SQLite:
-the database is a file, and reaching it from another machine means a network share, which is the one
-deployment SQLite documentation explicitly warns against — its locking is unreliable over SMB and
-NFS, and this is corruption rather than a stall. Three readings, in the order I would pick them:
+Verified against the running app: `/data` renders the new wording with no Refresh button,
+`GET /api/ingestion/run` is a 404 like any unknown route, and the log line on startup confirms the
+schedule is off. The POST returns 400 rather than 404, which is Blazor's antiforgery middleware
+rejecting every unmatched POST — `/api/nonsense/xyz` behaves identically, so the endpoint is
+genuinely gone rather than merely erroring.
 
-1. **A scheduled run on the same host, sharing the volume** — `docker exec` into the container, or a
-   sidecar container mounting the same volume, invoking the CLI's existing `daily` verb. Satisfies
-   "outside the web app" and "no trigger API", keeps one file with one machine writing to it, and
-   needs no new code beyond deleting the endpoint. This is what I would do.
-2. **Genuinely another machine**, which requires the database to stop being SQLite. The connection
-   string is already overridable and the archive format is provider-neutral precisely so this stays
-   possible — but it trades away the single-container free-hosting shape that drove the original
-   design.
-3. **Keep `DailyIngestionWorker` in-process** and treat the answer as being about the *trigger API*
-   only. Fewest moving parts, but it is not what the answer describes.
-
-`DailyJobEnabled` already switches the in-process worker off, so 1 and 3 differ by one setting plus
-a scheduled command — the decision is reversible and cheap either way. Recorded as question 10.
-
----
+Still open, and it is the cost of this change: **nothing announces a schedule that was never set
+up.** The site serves what it has and looks healthy. The README says so plainly and the Data page
+shows the last run, but a deployment whose cron entry was never created goes stale in silence. A
+readiness check for staleness was considered and left out — it would report Degraded all summer,
+when no games are being played and nothing is wrong.
 
 ## 3. Deployment
 

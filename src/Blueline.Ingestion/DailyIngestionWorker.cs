@@ -8,10 +8,21 @@ using Microsoft.Extensions.Options;
 namespace Blueline.Ingestion;
 
 /// <summary>
-/// Runs one ingestion pass a day, plus an optional pass at startup.
+/// Two jobs that look alike and are not: seeding an empty database so the site has something to
+/// show, and keeping a populated one current.
 ///
-/// A failed pass is logged and swallowed rather than crashing the host: the next day's run
-/// re-reads the same lookback window, so a transient API outage heals itself.
+/// **Seeding always runs.** It is about the site having data at all, so it is gated only by
+/// <see cref="IngestionOptions.SeedSeasonId"/>.
+///
+/// **The daily pass is off unless asked for.** Staying current is a schedule, and a schedule
+/// belongs outside the site — see the README. <see cref="IngestionOptions.DailyJobEnabled"/> turns
+/// the in-process one on for anyone who would rather not run one.
+///
+/// The two were previously gated together, which meant switching the schedule off also switched
+/// off first-run seeding, leaving a deployment permanently empty for a reason nothing announced.
+///
+/// A failed pass is logged and swallowed rather than crashing the host: the next run re-reads the
+/// same lookback window, so a transient API outage heals itself.
 /// </summary>
 public class DailyIngestionWorker(
     IServiceScopeFactory scopeFactory,
@@ -22,13 +33,15 @@ public class DailyIngestionWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var settings = options.Value;
-        if (!settings.DailyJobEnabled)
-        {
-            logger.LogInformation("Daily ingestion is disabled by configuration.");
-            return;
-        }
 
         await SeedIfEmptyAsync(settings, stoppingToken);
+
+        if (!settings.DailyJobEnabled)
+        {
+            logger.LogInformation(
+                "The in-process daily ingestion job is off; new games are expected from a scheduled run outside the site.");
+            return;
+        }
 
         if (settings.RunOnStartup)
             await RunOnceAsync(settings, stoppingToken);

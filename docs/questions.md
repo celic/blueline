@@ -54,6 +54,11 @@ Three readings, described in full in plan.md 2.6:
 
 **Default if unanswered:** option 1, and the endpoint and Refresh button removed regardless.
 
+**Built on that default.** The removals are done, and the schedule now lives outside the site by
+default — the README carries cron and scheduled-task recipes. Only *where* the job runs is still
+yours to say; switching to option 3 is one setting (`Ingestion__DailyJobEnabled=true`), and option 2
+is a connection string plus a provider.
+
 ### 11. On the new home page, what makes a streak "interesting"?
 
 You asked for the most interesting active streaks and for content that changes day to day. Those two
