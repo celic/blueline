@@ -574,6 +574,30 @@ public class IngestionTests
         Assert.That(NhlIngestionService.FormatFailedIds([]), Is.Null);
 
     [Test]
+    public async Task Two_teams_may_share_an_abbreviation_across_seasons()
+    {
+        // When Utah rebranded from Hockey Club to Mammoth the league issued a new team id while
+        // keeping "UTA". A unique index on the abbreviation made the second season unloadable.
+        var stub = new StubNhlApi()
+            .Add("score/2025-01-15", StubNhlApi.Score("2025-01-15", 2024020001))
+            .Add("gamecenter/2024020001/boxscore",
+                StubNhlApi.Boxscore(2024020001, "2025-01-15", homeTeamId: 59, "UTA", awayTeamId: 22, "AWY", 3, 2))
+            .Add("score/2026-01-15", StubNhlApi.Score("2026-01-15", 2025020001))
+            .Add("gamecenter/2025020001/boxscore",
+                StubNhlApi.Boxscore(2025020001, "2026-01-15", homeTeamId: 68, "UTA", awayTeamId: 22, "AWY", 3, 2));
+
+        var service = BuildService(stub);
+        await service.IngestRecentAsync(new DateOnly(2025, 1, 15), lookbackDays: 0);
+        await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(await _db.Teams.CountAsync(t => t.Abbrev == "UTA"), Is.EqualTo(2));
+            Assert.That(await _db.Games.CountAsync(), Is.EqualTo(2), "the second season must still load");
+        });
+    }
+
+    [Test]
     public async Task Trends_read_back_the_games_that_were_ingested()
     {
         await BuildService(TwoGamesSharingATeam()).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);

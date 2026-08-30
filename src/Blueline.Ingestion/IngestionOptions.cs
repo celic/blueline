@@ -26,10 +26,11 @@ public class IngestionOptions
     public int SeedSeasonId { get; set; } = 20252026;
 
     /// <summary>
-    /// Archive to load when the database is empty, in preference to re-ingesting from the league.
-    /// Relative paths resolve against the application directory. Leave unset to use the
-    /// convention <c>seed/{SeedSeasonId}.blueline.gz</c>; set it to an empty string to ignore any
-    /// archive and always ingest.
+    /// Directory searched for season archives when the database is empty. Every archive found is
+    /// loaded, so a deployment can ship several past seasons rather than just one.
+    ///
+    /// Relative paths resolve against the application directory. Set to an empty string to ignore
+    /// archives entirely and always ingest from the league.
     /// </summary>
-    public string? SeedArchivePath { get; set; }
+    public string? SeedArchiveDirectory { get; set; } = "seed";
 }

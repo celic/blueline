@@ -1,0 +1,35 @@
+{
+  "$comment": [
+    "Season archives available for download. The files themselves are release assets rather than",
+    "repository contents: they are generated data, roughly 1 MB per season, and they accumulate as",
+    "seasons are added. Committing them would fill a code repository history with binaries that are",
+    "replaced wholesale each time they are regenerated.",
+    "",
+    "scripts/fetch-seasons.ps1 reads this file, downloads each archive beside it, and verifies the",
+    "checksum. scripts/publish-seasons.ps1 exports the seasons and updates this file.",
+    "",
+    "An empty sha256 means the archive has not been published yet; the fetch script treats that as",
+    "not-yet-available rather than as a file to trust unverified.",
+    "",
+    "An empty baseUrl means there is nowhere to fetch from yet, so the fetch script explains how to",
+    "build the archives locally instead."
+  ],
+  "release": {
+    "tag": "seasons-v1",
+    "baseUrl": ""
+  },
+  "seasons": [
+    {
+      "seasonId": 20252026,
+      "label": "2025-26",
+      "file": "20252026.blueline.gz",
+      "sha256": "b5c23ae3fa54561b5c97051f90d96804ca2d2e46d8122d29eba190defe9f665a"
+    },
+    {
+      "seasonId": 20242025,
+      "label": "2024-25",
+      "file": "20242025.blueline.gz",
+      "sha256": "bc2494f950b19b6fb19224ceb4445176c2ba770f9de3ccf529b104f2845fca8a"
+    }
+  ]
+}

@@ -98,39 +98,48 @@ docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll status
 
 ### How data gets into the database
 
-**By default, from the archive that ships in the image — no API calls, a few seconds.**
+**From season archives — no API calls, a few seconds each.** An archive is a compressed export of
+one finished season, roughly 1 MB for around 60,000 rows. On startup against an empty database the
+app loads every archive it finds in `seed/`, so a deployment can carry several past seasons.
+Re-ingesting the same data from the league would take minutes per season and about 1,500 requests.
 
-`seed/20252026.blueline.gz` is a compressed export of the 2025-26 season: 61,035 rows in 941 KB.
-On startup against an empty database the app loads it and starts serving. Re-ingesting the same
-season from the league would take several minutes and about 1,500 requests to produce identical
-data.
+Archives are **release assets, not repository contents**. They are generated data, replaced
+wholesale whenever regenerated, and they accumulate as seasons are added — so committing them
+would fill a code repository's history with binaries. `seed/manifest.json` lists what exists;
+fetch them with:
 
-The import runs in a single transaction, so the site serves nothing until the whole season has
-landed. That matters more than it sounds: rows arrive in dependency order, so a partly applied
-import is not merely incomplete but wrong — leaderboards built from games whose stat lines have
-not arrived yet report the wrong leaders. It also means an interrupted import leaves no trace,
-rather than stranding a partial season that the empty-database check would mistake for real data.
+```bash
+pwsh ./scripts/fetch-seasons.ps1
+```
 
-If no archive is present the app falls back to ingesting from the league API, as before.
+Then build the image, and they are baked in. With no archives present the image still builds and
+the app falls back to ingesting a season from the league API on first run.
+
+Each import runs in a single transaction, so the site serves nothing from that season until all of
+it has landed. Rows arrive in dependency order, so a partly applied import is not merely
+incomplete but wrong — leaderboards built from games whose stat lines have not arrived yet report
+the wrong leaders. It also means a failure leaves no trace instead of stranding a partial season
+that the empty-database check would mistake for real data. One unreadable archive costs only its
+own season.
 
 Other routes:
 
 | What | How |
 | --- | --- |
 | Load an archive by hand | `docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll import seed/20252026.blueline.gz` |
-| Make an archive of a season you have | `dotnet run --project src/Blueline.Cli -- export 20252026 seed/20252026.blueline.gz` |
-| Ingest from the league instead | Set `Ingestion__SeedArchivePath=""` to ignore any archive |
+| Make an archive from a season you hold | `dotnet run --project src/Blueline.Cli -- export 20252026 seed/20252026.blueline.gz` |
+| Publish archives for others | `pwsh ./scripts/publish-seasons.ps1 -Publish` |
+| Ingest from the league instead | Set `Ingestion__SeedArchiveDirectory=""` |
 | Load nothing at all | Set `Ingestion__SeedSeasonId=0` |
 
-Archives are portable rather than a copy of the database file: rows go through the model, so one
+Archives are portable rather than copies of the database file: rows go through the model, so one
 taken from SQLite loads into any provider EF Core supports. Importing is idempotent, so running it
 twice, or over a season already present, converges instead of duplicating.
 
-**The setting that still matters most: the volume must genuinely persist.** Seeding is triggered
-by finding an *empty database*, not by a first-run flag. The archive makes a repeat far cheaper
-than it used to be — seconds instead of minutes, and no requests at all — but storage that is
-thrown away on restart still means rebuilding the database on every boot. Restart once and check
-`status` reports the same games before trusting anything else.
+**The setting that still matters most: the volume must genuinely persist.** Seeding is triggered by
+finding an *empty database*, not by a first-run flag. Archives make a repeat far cheaper than it
+was — seconds and no requests — but storage thrown away on restart still means rebuilding on every
+boot. Restart once and check `status` reports the same games before trusting anything else.
 
 ### Keeping it current
 

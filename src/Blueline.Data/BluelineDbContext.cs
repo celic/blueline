@@ -20,7 +20,12 @@ public class BluelineDbContext(DbContextOptions<BluelineDbContext> options) : Db
             // League-assigned ids, so never generate our own.
             e.Property(t => t.Id).ValueGeneratedNever();
             e.Property(t => t.Abbrev).HasMaxLength(3);
-            e.HasIndex(t => t.Abbrev).IsUnique();
+
+            // Indexed for lookups but deliberately not unique. An abbreviation is a label, not an
+            // identity: when Utah rebranded from Hockey Club to Mammoth the league issued a new
+            // team id (59 to 68) while keeping "UTA", so two rows legitimately share it across
+            // seasons. The id is what identifies a club.
+            e.HasIndex(t => t.Abbrev);
         });
 
         b.Entity<Player>(e =>

@@ -47,8 +47,21 @@ public abstract class BluelinePageTest : PageTest
         await Page.EvaluateAsync<T>($"() => {{ const chart = Object.values(Chart.instances)[0]; return {expression}; }}");
 
     protected async Task WaitForChartAsync() =>
+        await WaitForChartAsync("chart.data.datasets.length > 0");
+
+    /// <summary>
+    /// Polls a condition against the live chart, tolerating the moment when there is not one.
+    ///
+    /// Changing a control rebuilds the chart component, so between the old chart being destroyed
+    /// and the new one being created there is no instance at all. A predicate that dereferences
+    /// it directly throws during that window instead of simply not matching yet, which turns a
+    /// normal repaint into a flaky failure.
+    /// </summary>
+    protected async Task WaitForChartAsync(string predicate) =>
         await Page.WaitForFunctionAsync(
-            "() => window.Chart && Object.values(Chart.instances).length > 0 && Object.values(Chart.instances)[0].data.datasets.length > 0");
+            $"() => {{ if (!window.Chart) return false; " +
+            $"const chart = Object.values(Chart.instances)[0]; " +
+            $"return !!chart && ({predicate}); }}");
 
     protected void AssertNoConsoleErrors()
     {

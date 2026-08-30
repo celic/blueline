@@ -57,8 +57,7 @@ public class TrendPageTests : BluelinePageTest
         await Page.GetByRole(AriaRole.Button, new() { Name = "Per game", Exact = true }).ClickAsync();
 
         await Expect(Page.Locator("#window")).ToBeVisibleAsync();
-        await Page.WaitForFunctionAsync(
-            "() => Object.values(Chart.instances)[0].data.datasets.length === 2");
+        await WaitForChartAsync("chart.data.datasets.length === 2");
 
         var labels = await ReadChartAsync<string[]>("chart.data.datasets.map(d => d.label)");
         Assert.That(labels, Does.Contain("Per game"));
@@ -74,7 +73,7 @@ public class TrendPageTests : BluelinePageTest
         Assert.That(await ReadChartAsync<string>("chart.scales.x.type"), Is.EqualTo("category"));
 
         await Page.GetByRole(AriaRole.Button, new() { Name = "Date", Exact = true }).ClickAsync();
-        await Page.WaitForFunctionAsync("() => Object.values(Chart.instances)[0].scales.x.type === 'time'");
+        await WaitForChartAsync("chart.scales.x.type === 'time'");
 
         // The seeded season deliberately contains an uneven gap, so a genuine time scale must
         // span the real calendar range rather than collapsing onto the game numbers.

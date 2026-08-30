@@ -485,3 +485,9 @@ $RECYCLE.BIN/
 *.db
 *.db-shm
 *.db-wal
+
+# Season archives are release assets, not repository contents: generated data, ~1 MB each, and
+# replaced wholesale every time they are regenerated. seed/manifest.json lists them and
+# scripts/fetch-seasons.ps1 downloads them.
+seed/*.blueline.gz
+seed/*.partial

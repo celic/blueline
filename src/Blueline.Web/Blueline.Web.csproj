@@ -18,8 +18,9 @@
   </PropertyGroup>
 
 
-  <!-- The season archive ships with the app so a fresh database can be filled without
-       touching the league's API. -->
+  <!-- Season archives ship with the app so a fresh database can be filled without touching the
+       league's API. The glob matches nothing when none have been fetched, which is a valid
+       state: the app falls back to ingesting. -->
   <ItemGroup>
     <Content Include="..\..\seed\*.blueline.gz" Link="seed\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

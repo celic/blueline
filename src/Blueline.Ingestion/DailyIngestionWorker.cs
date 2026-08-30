@@ -66,18 +66,36 @@ public class DailyIngestionWorker(
             var db = scope.ServiceProvider.GetRequiredService<BluelineDbContext>();
             if (await db.Games.AnyAsync(ct)) return;
 
-            // An archive is preferred over the league API: it takes seconds instead of minutes
-            // and costs no requests at all. Ingestion is the fallback for when none is shipped.
-            var archivePath = ResolveSeedArchive(settings);
-            if (archivePath is not null)
+            // Archives are preferred over the league API: seconds instead of minutes, and no
+            // requests at all. Every archive present is loaded, so a deployment can carry several
+            // past seasons. Ingestion is the fallback for when none is shipped.
+            var archives = FindSeedArchives(settings);
+            if (archives.Count > 0)
             {
-                logger.LogInformation("Database is empty; loading the season archive at {Path}.", archivePath);
+                logger.LogInformation("Database is empty; loading {Count} season archive(s).", archives.Count);
 
                 var archive = scope.ServiceProvider.GetRequiredService<SeasonArchive>();
-                var imported = await archive.ImportAsync(archivePath, ct);
+                var games = 0;
 
-                logger.LogInformation("Seeded {Count} games from the archive.", imported.Games);
-                return;
+                foreach (var path in archives)
+                {
+                    // Each import is its own transaction, so one unreadable archive costs only
+                    // its own season rather than the seasons already loaded.
+                    try
+                    {
+                        var imported = await archive.ImportAsync(path, ct);
+                        games += imported.Games;
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        logger.LogError(ex, "Could not load the season archive at {Path}; skipping it.", path);
+                    }
+                }
+
+                logger.LogInformation("Seeded {Count} games from archives.", games);
+                if (games > 0) return;
+
+                logger.LogWarning("No archive could be loaded; falling back to the league API.");
             }
 
             logger.LogInformation(
@@ -99,22 +117,26 @@ public class DailyIngestionWorker(
         }
     }
 
+    /// <summary>Extension every season archive carries.</summary>
+    public const string ArchiveExtension = ".blueline.gz";
+
     /// <summary>
-    /// Locates the archive to seed from, or null to fall back to ingesting. An explicitly empty
-    /// setting means "never use an archive", which is distinct from leaving it unset.
+    /// Every archive available to seed from, oldest season first so the newest wins any overlap.
+    /// An explicitly empty directory setting means "never use an archive".
     /// </summary>
-    internal static string? ResolveSeedArchive(IngestionOptions settings)
+    internal static IReadOnlyList<string> FindSeedArchives(IngestionOptions settings)
     {
-        if (settings.SeedArchivePath is { Length: 0 }) return null;
+        if (settings.SeedArchiveDirectory is not { Length: > 0 } configured) return [];
 
-        var configured = settings.SeedArchivePath
-                         ?? Path.Combine("seed", $"{settings.SeedSeasonId}.blueline.gz");
-
-        var path = Path.IsPathRooted(configured)
+        var directory = Path.IsPathRooted(configured)
             ? configured
             : Path.Combine(AppContext.BaseDirectory, configured);
 
-        return File.Exists(path) ? path : null;
+        if (!Directory.Exists(directory)) return [];
+
+        return Directory.GetFiles(directory, $"*{ArchiveExtension}")
+            .OrderBy(Path.GetFileName, StringComparer.Ordinal)
+            .ToList();
     }
 
     private async Task RunOnceAsync(IngestionOptions settings, CancellationToken ct)

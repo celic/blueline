@@ -208,7 +208,13 @@ public class NhlIngestionService(
 
             foreach (var game in schedule.Games)
             {
-                if (IsIngestableGame(game)) gameIds.Add(game.Id);
+                // Teams are taken only from games that will actually be stored. A club schedule
+                // also lists preseason fixtures, which can be against sides outside the league
+                // entirely — a European club on a Global Series trip — and recording those would
+                // leave teams in the database that never play a game we hold.
+                if (!IsIngestableGame(game)) continue;
+
+                gameIds.Add(game.Id);
 
                 foreach (var team in new[] { game.HomeTeam, game.AwayTeam })
                 {

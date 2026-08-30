@@ -25,7 +25,7 @@ public class ComparisonTests : BluelinePageTest
 
         await AddComparisonAsync("grinder", BluelineAppFixture.Seed.GrinderName);
 
-        await Page.WaitForFunctionAsync("() => Object.values(Chart.instances)[0].data.datasets.length === 2");
+        await WaitForChartAsync("chart.data.datasets.length === 2");
 
         var labels = await ReadChartAsync<string[]>("chart.data.datasets.map(d => d.label)");
         Assert.That(labels, Does.Contain(BluelineAppFixture.Seed.GrinderName));
@@ -58,7 +58,7 @@ public class ComparisonTests : BluelinePageTest
         await Page.Locator(".chip button").ClickAsync();
 
         await Expect(Page.Locator(".chip")).ToHaveCountAsync(0);
-        await Page.WaitForFunctionAsync("() => Object.values(Chart.instances)[0].data.datasets.length === 1");
+        await WaitForChartAsync("chart.data.datasets.length === 1");
         AssertNoConsoleErrors();
     }
 
@@ -95,14 +95,13 @@ public class ComparisonTests : BluelinePageTest
         await GoToAsync(PlayerUrl);
         await WaitForChartAsync();
         await AddComparisonAsync("grinder", BluelineAppFixture.Seed.GrinderName);
-        await Page.WaitForFunctionAsync("() => Object.values(Chart.instances)[0].data.datasets.length === 2");
+        await WaitForChartAsync("chart.data.datasets.length === 2");
 
         await Page.Locator("#stat").SelectOptionAsync("hits");
 
         // The comparison is held by id and re-fetched against the new stat, not discarded.
         await Expect(Page.Locator(".chip")).ToContainTextAsync(BluelineAppFixture.Seed.GrinderName);
-        await Page.WaitForFunctionAsync(
-            "() => Object.values(Chart.instances)[0].data.datasets.some(d => d.data.at(-1) === 70)");
+        await WaitForChartAsync("chart.data.datasets.some(d => d.data.at(-1) === 70)");
         AssertNoConsoleErrors();
     }
 
@@ -115,7 +114,7 @@ public class ComparisonTests : BluelinePageTest
         await Page.GetByPlaceholder("Search teams…").FillAsync("Awayville");
         await Page.GetByRole(AriaRole.Button, new() { Name = "Awayville" }).ClickAsync();
 
-        await Page.WaitForFunctionAsync("() => Object.values(Chart.instances)[0].data.datasets.length === 2");
+        await WaitForChartAsync("chart.data.datasets.length === 2");
         await Expect(Page.Locator(".chip")).ToContainTextAsync("Awayville");
         AssertNoConsoleErrors();
     }

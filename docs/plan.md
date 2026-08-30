@@ -292,24 +292,31 @@ proxy.
 
 ### 3.4 Ship seasons as installable archives — `done`
 
-`export` and `import` in the CLI, and `seed/20252026.blueline.gz` committed alongside the code:
-61,035 rows in 941 KB, 18% the size of the database it came from. The image carries it, and an
-empty database now loads it in seconds rather than spending several minutes and ~1,500 requests
-rebuilding data that has not changed since the season ended. Ingestion remains the fallback when
-no archive is present.
+`export` and `import` in the CLI; archives are published as **release assets** rather than
+committed, since they are generated data of roughly 1 MB per season that accumulates as seasons
+are added and is replaced wholesale each time. `seed/manifest.json` lists what exists, with
+checksums; `scripts/fetch-seasons.ps1` downloads and verifies them, and
+`scripts/publish-seasons.ps1` exports and uploads.
 
-- **Gzipped JSON Lines, not a copy of the SQLite file.** A file copy would be smaller and simpler
-  but would tie the archive to SQLite, and the connection string is deliberately overridable so a
-  deployment can change provider. Rows go through the model, so an archive taken from SQLite
-  loads into anything EF Core supports. Line-per-record keeps both ends streaming.
-- **A dacpac was the original suggestion**, but that is SQL Server specific and schema-oriented;
-  the schema here already travels as EF migrations. What was missing was the data.
-- **The import is one transaction.** Found by measuring rather than reasoning: readiness first
-  went healthy three seconds into a boot, while the site served leaderboards showing Jack Eichel
-  on 16 points. Rows arrive in dependency order, so games land before the stat lines that
-  reference them and anything computed in between is wrong rather than merely thin. Atomic
-  import also means a failure leaves nothing behind, instead of stranding a partial season that
-  the empty-database check would take for real data.
+An empty database loads **every** archive present, so a deployment can carry several past seasons.
+Two are built: 2025-26 and 2024-25, about 61,000 rows and 0.90 MB each. Both load into an empty
+database in 23 seconds, against several minutes and ~1,500 requests per season through the API.
+
+- **Gzipped JSON Lines, not a copy of the SQLite file**, so an archive taken from SQLite loads into
+  any provider EF Core supports. A dacpac was the original suggestion, but that is SQL Server
+  specific and schema-oriented; the schema already travels as EF migrations.
+- **Each archive imports in its own transaction.** One unreadable archive costs only its own
+  season. Within a season the import is all-or-nothing, because rows arrive in dependency order
+  and a half-applied season reports wrong leaders rather than merely thin ones.
+- Seasons therefore appear one at a time on a first boot. The site becomes ready once the first
+  has landed and the rest follow within seconds; each is internally consistent when it appears.
+
+**Building the second season exposed a real bug**, which is the value of having done it rather
+than assumed it. See 4.2.
+
+**Not published.** There is no git remote and no `gh` CLI here, so the archives exist locally and
+the manifest carries their checksums, but nothing has been uploaded. `release.baseUrl` is empty,
+and the fetch script says so plainly rather than failing.
 
 ### 3.2 Decide and set up the host — `todo`
 
@@ -371,10 +378,29 @@ Verified against the live database: 25 of 25 genuinely abbreviated names resolve
 (`C. Petersen` is now `Cal Petersen`), the five initialised names were correctly left alone, and
 a second run performed no enrichment at all — the nightly roster walk is gone.
 
-### 4.2 Load more seasons — `todo`
+### 4.2 Load more seasons — `done` for 2024-25
 
-Schema and UI are already multi-season; a season picker is on every page. This is just running
-`backfill` per season. Scope is a question — see `questions.md`.
+2024-25 is loaded and archived alongside 2025-26. Adding another season is now a `backfill`
+followed by an `export`.
+
+**Loading a second season failed at first**, and the cause was a design error rather than bad
+data: `UNIQUE constraint failed: Teams.Abbrev`.
+
+When Utah rebranded from Hockey Club to Mammoth the league issued the franchise a **new team id**
+— 59 became 68 — while keeping the abbreviation `UTA`. The unique index on `Team.Abbrev` assumed
+abbreviations identify a club. They do not: the id is the identity and the abbreviation is a
+label, which relocations and rebrands change. The index is now non-unique, and a regression test
+ingests two seasons where different ids share `UTA`.
+
+The same investigation turned up a non-NHL club, id 7509 `MUN`, arriving from preseason fixtures
+on a club schedule — a European side on a Global Series trip. Teams were being recorded from every
+scheduled game including ones never ingested, so it would have been stored as a team that plays no
+game we hold. Teams are now taken only from games that will actually be stored.
+
+Worth knowing before going further back: box score detail thins out with age. Hits, blocked shots,
+giveaways and takeaways are not reliably populated in older seasons, so a chart for those would be
+empty or wrong rather than obviously missing. Verify per-stat coverage before publishing a season
+much older than these two.
 
 ### 4.3 Confirm the daily job on a live game day — `todo`
 

@@ -16,6 +16,9 @@ COPY src/Blueline.Cli/Blueline.Cli.csproj        src/Blueline.Cli/
 RUN dotnet restore src/Blueline.Web/Blueline.Web.csproj \
  && dotnet restore src/Blueline.Cli/Blueline.Cli.csproj
 
+# Whatever season archives are present. They are release assets rather than repository
+# contents, so run scripts/fetch-seasons.ps1 before building to bake them in. With none
+# present the image still builds and the app ingests a season on first run instead.
 COPY seed/ seed/
 COPY src/ src/
 
