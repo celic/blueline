@@ -77,10 +77,12 @@ else
         {
             <div class="field">
                 <label for="window">Rolling window</label>
-                <select id="window" value="@_window" @onchange="OnWindowChanged">
-                    @foreach (var w in new[] { 5, 10, 15, 20 })
+                @* Both units in one control: they answer the same question, measured
+                   differently, and a second dropdown would imply otherwise. *@
+                <select id="window" value="@_window.Token" @onchange="OnWindowChanged">
+                    @foreach (var w in RollingWindow.Choices)
                     {
-                        <option value="@w">@w games</option>
+                        <option value="@w.Token">@w.OptionLabel</option>
                     }
                 </select>
             </div>
@@ -121,7 +123,7 @@ else
                 </div>
                 <div>
                     <div class="value">@Format(BestStretch())</div>
-                    <div class="label">Best @_window-game stretch</div>
+                    <div class="label">Best @_window.Label stretch</div>
                 </div>
             </div>
             <TrendChart Spec="_spec" @key="_chartKey" />
@@ -175,7 +177,7 @@ else
 
     private int _seasonId;
     private string _stat = "points";
-    private int _window = 10;
+    private RollingWindow _window = RollingWindow.Default;
     private ViewMode _view = ViewMode.Cumulative;
     private GameScope _scope;
     private bool _timeAxis;
@@ -289,7 +291,7 @@ else
                 }
 
                 datasets.Add(TrendDatasets.From(
-                    all.Count == 1 ? $"{_window}-game average" : series.SubjectName,
+                    all.Count == 1 ? $"{_window.Label} average" : series.SubjectName,
                     series.Points, p => p.RollingAverage, color, _timeAxis, length));
             }
         }
@@ -310,7 +312,7 @@ else
             Subtitles: subtitles,
             TimeAxis: _timeAxis);
 
-        _chartKey = $"{PlayerId}-{_seasonId}-{_scope}-{_stat}-{_window}-{_view}-{_timeAxis}-{_comparisons.Count}";
+        _chartKey = $"{PlayerId}-{_seasonId}-{_scope}-{_stat}-{_window.Token}-{_view}-{_timeAxis}-{_comparisons.Count}";
     }
 
     /// <summary>Pads a shorter season with nulls so Chart.js keeps every series on one x axis.</summary>
@@ -321,14 +323,22 @@ else
         return list;
     }
 
-    /// <summary>The player's hottest stretch — the headline number a trend view should answer.</summary>
+    /// <summary>
+    /// The player's hottest stretch — the headline number a trend view should answer.
+    ///
+    /// Reads the window's own total rather than multiplying its average by the window size. Those
+    /// agree only when the window is counted in games; over fourteen days a player might play four
+    /// times or eight, and multiplying by fourteen would report a figure they never came close to.
+    ///
+    /// Falls back to the season total when no window is full — a season shorter than the window
+    /// has no stretch to speak of, and its whole output is the answer.
+    /// </summary>
     private double BestStretch()
     {
         if (_primary is null || _primary.Points.Count == 0) return 0;
 
-        var best = _primary.Points.Where(p => p.RollingAverage is not null).Select(p => p.RollingAverage!.Value);
-        var window = best.Any() ? best.Max() * _window : _primary.Total;
-        return Math.Round(window, 1);
+        var totals = _primary.Points.Where(p => p.RollingTotal is not null).Select(p => p.RollingTotal!.Value).ToList();
+        return Math.Round(totals.Count > 0 ? totals.Max() : _primary.Total, 1);
     }
 
     private async Task OnStatChanged(ChangeEventArgs e)
@@ -346,7 +356,7 @@ else
 
     private async Task OnWindowChanged(ChangeEventArgs e)
     {
-        if (int.TryParse(e.Value?.ToString(), out var window)) _window = window;
+        _window = RollingWindow.Parse(e.Value?.ToString());
         await LoadAsync();
     }
 

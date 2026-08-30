@@ -19,7 +19,7 @@ public class TrendCalculationTests
     [Test]
     public void Cumulative_totals_run_as_a_running_sum()
     {
-        var points = StatsQueryService.BuildPoints(Rows(1, 0, 2, 3), rollingWindow: 2);
+        var points = StatsQueryService.BuildPoints(Rows(1, 0, 2, 3), window: 2);
 
         Assert.That(points.Select(p => p.Cumulative), Is.EqualTo(new[] { 1d, 1d, 3d, 6d }));
     }
@@ -27,7 +27,7 @@ public class TrendCalculationTests
     [Test]
     public void Game_numbers_are_sequential_from_one()
     {
-        var points = StatsQueryService.BuildPoints(Rows(1, 1, 1), rollingWindow: 2);
+        var points = StatsQueryService.BuildPoints(Rows(1, 1, 1), window: 2);
 
         Assert.That(points.Select(p => p.GameNumber), Is.EqualTo(new[] { 1, 2, 3 }));
     }
@@ -35,7 +35,7 @@ public class TrendCalculationTests
     [Test]
     public void Rolling_average_is_null_until_a_full_window_of_games_exists()
     {
-        var points = StatsQueryService.BuildPoints(Rows(2, 4, 6, 8), rollingWindow: 3);
+        var points = StatsQueryService.BuildPoints(Rows(2, 4, 6, 8), window: 3);
 
         Assert.Multiple(() =>
         {
@@ -51,7 +51,7 @@ public class TrendCalculationTests
     public void Rolling_average_only_looks_backwards()
     {
         // A late burst must not lift the average of earlier games.
-        var points = StatsQueryService.BuildPoints(Rows(0, 0, 0, 9), rollingWindow: 2);
+        var points = StatsQueryService.BuildPoints(Rows(0, 0, 0, 9), window: 2);
 
         Assert.Multiple(() =>
         {
@@ -64,7 +64,7 @@ public class TrendCalculationTests
     public void Negative_values_accumulate_correctly()
     {
         // Plus/minus is the one stat that can fall as the season goes on.
-        var points = StatsQueryService.BuildPoints(Rows(-1, 2, -3), rollingWindow: 1);
+        var points = StatsQueryService.BuildPoints(Rows(-1, 2, -3), window: 1);
 
         Assert.That(points.Select(p => p.Cumulative), Is.EqualTo(new[] { -1d, 1d, -2d }));
     }
@@ -72,7 +72,7 @@ public class TrendCalculationTests
     [Test]
     public void A_window_larger_than_the_season_yields_no_rolling_average()
     {
-        var points = StatsQueryService.BuildPoints(Rows(1, 2), rollingWindow: 10);
+        var points = StatsQueryService.BuildPoints(Rows(1, 2), window: 10);
 
         Assert.That(points.Select(p => p.RollingAverage), Is.All.Null);
     }
@@ -80,7 +80,7 @@ public class TrendCalculationTests
     [Test]
     public void A_window_of_zero_is_treated_as_one_rather_than_dividing_by_zero()
     {
-        var points = StatsQueryService.BuildPoints(Rows(3, 5), rollingWindow: 0);
+        var points = StatsQueryService.BuildPoints(Rows(3, 5), window: 0);
 
         Assert.That(points.Select(p => p.RollingAverage), Is.EqualTo(new double?[] { 3d, 5d }));
     }
@@ -88,13 +88,13 @@ public class TrendCalculationTests
     [Test]
     public void An_empty_season_produces_no_points()
     {
-        Assert.That(StatsQueryService.BuildPoints(Rows(), rollingWindow: 5), Is.Empty);
+        Assert.That(StatsQueryService.BuildPoints(Rows(), window: 5), Is.Empty);
     }
 
     [Test]
     public void Opponent_and_venue_carry_through_to_each_point()
     {
-        var points = StatsQueryService.BuildPoints(Rows(1, 1), rollingWindow: 1);
+        var points = StatsQueryService.BuildPoints(Rows(1, 1), window: 1);
 
         Assert.Multiple(() =>
         {
@@ -119,7 +119,7 @@ public class TrendCalculationTests
     {
         // A perfect 10-shot night followed by a poor 40-shot night. Averaging the two game
         // percentages gives .750; the honest combined figure is 30 saves on 50 shots.
-        var points = StatsQueryService.BuildPoints(RateRows((10, 10), (20, 40)), rollingWindow: 1);
+        var points = StatsQueryService.BuildPoints(RateRows((10, 10), (20, 40)), window: 1);
 
         Assert.Multiple(() =>
         {
@@ -132,7 +132,7 @@ public class TrendCalculationTests
     [Test]
     public void A_rolling_rate_is_also_denominator_weighted()
     {
-        var points = StatsQueryService.BuildPoints(RateRows((10, 10), (20, 40), (9, 10)), rollingWindow: 2);
+        var points = StatsQueryService.BuildPoints(RateRows((10, 10), (20, 40), (9, 10)), window: 2);
 
         Assert.Multiple(() =>
         {
@@ -147,7 +147,7 @@ public class TrendCalculationTests
     public void A_game_facing_no_shots_does_not_divide_by_zero_or_distort_the_rate()
     {
         // A goalie pulled in early relief can face nothing at all.
-        var points = StatsQueryService.BuildPoints(RateRows((0, 0), (18, 20)), rollingWindow: 1);
+        var points = StatsQueryService.BuildPoints(RateRows((0, 0), (18, 20)), window: 1);
 
         Assert.Multiple(() =>
         {
@@ -161,7 +161,7 @@ public class TrendCalculationTests
     public void Goals_against_average_accumulates_per_sixty_minutes()
     {
         // Two goals in a full 60, then one in 30 minutes: 3 goals across 90 minutes is 2.00.
-        var points = StatsQueryService.BuildPoints(RateRows((2 * 60, 60), (1 * 60, 30)), rollingWindow: 1);
+        var points = StatsQueryService.BuildPoints(RateRows((2 * 60, 60), (1 * 60, 30)), window: 1);
 
         Assert.Multiple(() =>
         {
@@ -175,7 +175,7 @@ public class TrendCalculationTests
     public void Counting_stats_are_unaffected_by_the_rate_support()
     {
         // Rows with no denominator must still behave exactly as before.
-        var points = StatsQueryService.BuildPoints(Rows(2, 3, 4), rollingWindow: 2);
+        var points = StatsQueryService.BuildPoints(Rows(2, 3, 4), window: 2);
 
         Assert.Multiple(() =>
         {

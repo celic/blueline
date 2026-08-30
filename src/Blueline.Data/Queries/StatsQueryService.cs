@@ -211,11 +211,13 @@ public class StatsQueryService(BluelineDbContext db)
         };
 
     public async Task<TrendSeries?> GetGoalieTrendAsync(
-        int playerId, int seasonId, string stat, int rollingWindow = 10,
+        int playerId, int seasonId, string stat, RollingWindow rollingWindow = default,
         GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
     {
         var definition = StatDefinition.FindGoalie(stat);
         if (definition is null) return null;
+
+        var window = Normalise(rollingWindow);
 
         var player = await db.Players.FirstOrDefaultAsync(p => p.Id == playerId, ct);
         if (player is null) return null;
@@ -253,11 +255,11 @@ public class StatsQueryService(BluelineDbContext db)
                     Math.Round(r.TimeOnIceSeconds / 60d, 2)),
                 _ => new GameRow(r.GameId, r.GameDate, r.IsHome, r.Opponent, r.Saves),
             }).ToList(),
-            rollingWindow);
+            window);
 
         return new TrendSeries(
-            player.FullName, playerId, definition.Key, definition.Label, seasonId, rollingWindow,
-            points, definition.IsRate);
+            player.FullName, playerId, definition.Key, definition.Label, seasonId, window.Size,
+            points, definition.IsRate, window.Unit);
     }
 
     public async Task<IReadOnlyList<TeamSummary>> GetTeamsAsync(
@@ -295,11 +297,13 @@ public class StatsQueryService(BluelineDbContext db)
     }
 
     public async Task<TrendSeries?> GetPlayerTrendAsync(
-        int playerId, int seasonId, string stat, int rollingWindow = 10,
+        int playerId, int seasonId, string stat, RollingWindow rollingWindow = default,
         GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
     {
         var definition = StatDefinition.FindSkater(stat);
         if (definition is null) return null;
+
+        var window = Normalise(rollingWindow);
 
         var player = await db.Players.FirstOrDefaultAsync(p => p.Id == playerId, ct);
         if (player is null) return null;
@@ -322,18 +326,21 @@ public class StatsQueryService(BluelineDbContext db)
         var points = BuildPoints(
             rows.Select(r => new GameRow(
                 r.GameId, r.GameDate, r.IsHome, r.Opponent, SkaterValue(r.Stat, definition.Key))).ToList(),
-            rollingWindow);
+            window);
 
         return new TrendSeries(
-            player.FullName, playerId, definition.Key, definition.Label, seasonId, rollingWindow, points);
+            player.FullName, playerId, definition.Key, definition.Label, seasonId, window.Size, points,
+            RollingWindowUnit: window.Unit);
     }
 
     public async Task<TrendSeries?> GetTeamTrendAsync(
-        int teamId, int seasonId, string stat, int rollingWindow = 10,
+        int teamId, int seasonId, string stat, RollingWindow rollingWindow = default,
         GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
     {
         var definition = StatDefinition.FindTeam(stat);
         if (definition is null) return null;
+
+        var window = Normalise(rollingWindow);
 
         var team = await db.Teams.FirstOrDefaultAsync(t => t.Id == teamId, ct);
         if (team is null) return null;
@@ -368,10 +375,11 @@ public class StatsQueryService(BluelineDbContext db)
                     "goalDifferential" => r.GoalsFor - r.GoalsAgainst,
                     _ => r.Points,
                 })).ToList(),
-            rollingWindow);
+            window);
 
         return new TrendSeries(
-            team.Name, teamId, definition.Key, definition.Label, seasonId, rollingWindow, points);
+            team.Name, teamId, definition.Key, definition.Label, seasonId, window.Size, points,
+            RollingWindowUnit: window.Unit);
     }
 
     public async Task<IReadOnlyList<LeaderRow>> GetLeadersAsync(
@@ -536,10 +544,13 @@ public class StatsQueryService(BluelineDbContext db)
     /// denominators separately and dividing at the end, which is the only correct way to combine
     /// them: averaging per-game save percentages would let a goalie's 2-shot night count as much
     /// as their 45-shot night.
+    ///
+    /// The window is either the last N games or the last N days. Both average over the games the
+    /// window contains — a days window divides by however many games fell inside it, not by the
+    /// number of days, so the rolling line keeps the per-game units the rest of the chart uses.
     /// </summary>
-    internal static List<TrendPoint> BuildPoints(List<GameRow> rows, int rollingWindow)
+    internal static List<TrendPoint> BuildPoints(List<GameRow> rows, RollingWindow window)
     {
-        var window = Math.Max(1, rollingWindow);
         var points = new List<TrendPoint>(rows.Count);
 
         var isRate = rows.Count > 0 && rows[0].RateDenominator.HasValue;
@@ -558,29 +569,73 @@ public class StatsQueryService(BluelineDbContext db)
             var cumulative = isRate ? Ratio(numerator, denominator) : numerator;
 
             // Only report a rolling average once a full window sits behind it; a partial window
-            // makes the opening games of a season look far more volatile than they are.
+            // makes the opening games of a season look far more volatile than they are. For a
+            // days window "full" is a property of the calendar, not of the games played: the
+            // series has to reach back far enough, however few games fell in between.
             double? rolling = null;
-            if (i + 1 >= window)
+            double? rollingTotal = null;
+
+            var start = WindowStart(rows, i, window);
+            if (start >= 0)
             {
                 var windowNumerator = 0d;
                 var windowDenominator = 0d;
-                for (var j = i - window + 1; j <= i; j++)
+                for (var j = start; j <= i; j++)
                 {
                     windowNumerator += rows[j].Value;
                     windowDenominator += rows[j].RateDenominator ?? 0;
                 }
 
+                var gamesInWindow = i - start + 1;
+
                 rolling = Math.Round(
-                    isRate ? Ratio(windowNumerator, windowDenominator) : windowNumerator / window,
+                    isRate ? Ratio(windowNumerator, windowDenominator) : windowNumerator / gamesInWindow,
                     precision);
+
+                // Meaningless for a rate: adding up per-game save percentages produces a number
+                // with no unit. The rolling figure is already the rate over the whole window.
+                if (!isRate) rollingTotal = Math.Round(windowNumerator, precision);
             }
 
             points.Add(new TrendPoint(
                 i + 1, row.GameId, row.Date, row.Opponent, row.IsHome,
-                Math.Round(value, precision), Math.Round(cumulative, precision), rolling));
+                Math.Round(value, precision), Math.Round(cumulative, precision), rolling, rollingTotal));
         }
 
         return points;
+    }
+
+    /// <summary>
+    /// A window left unset — <c>default</c>, which every optional parameter here resolves to —
+    /// means the caller did not care, so it gets the ten-game window that was the only option
+    /// before days existed.
+    /// </summary>
+    private static RollingWindow Normalise(RollingWindow window) =>
+        window.Size > 0 ? window : RollingWindow.Default;
+
+    /// <summary>
+    /// The first row inside the window ending at <paramref name="index"/>, or -1 when the window
+    /// is not yet full.
+    ///
+    /// A games window is full once enough games sit behind it. A days window is full once the
+    /// series itself spans the whole period — otherwise the opening night of a season would
+    /// report a "14-day average" covering one game, which reads as form rather than as the single
+    /// data point it is.
+    /// </summary>
+    private static int WindowStart(List<GameRow> rows, int index, RollingWindow window)
+    {
+        if (window.Unit == WindowUnit.Games)
+        {
+            var start = index - window.Size + 1;
+            return start >= 0 ? start : -1;
+        }
+
+        var earliest = rows[index].Date.AddDays(-(window.Size - 1));
+        if (rows[0].Date > earliest) return -1;
+
+        var first = index;
+        while (first > 0 && rows[first - 1].Date >= earliest) first--;
+        return first;
     }
 
     /// <summary>Guards the empty-denominator case, which is a real occurrence for goalies.</summary>

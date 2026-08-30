@@ -9,7 +9,16 @@ public record TrendPoint(
     bool IsHome,
     double Value,
     double Cumulative,
-    double? RollingAverage);
+    double? RollingAverage,
+    /// <summary>
+    /// What the window's games add up to, as opposed to their average. Null for a rate, where a
+    /// total of the per-game percentages would mean nothing, and null wherever the window is not
+    /// yet full.
+    ///
+    /// Carried rather than derived because a days-based window holds a varying number of games:
+    /// average times window size recovers the total only when the window is counted in games.
+    /// </summary>
+    double? RollingTotal = null);
 
 /// <summary>A full trend series for one subject (player or team) and one stat.</summary>
 public record TrendSeries(
@@ -20,7 +29,8 @@ public record TrendSeries(
     int SeasonId,
     int RollingWindow,
     IReadOnlyList<TrendPoint> Points,
-    bool IsRate = false)
+    bool IsRate = false,
+    WindowUnit RollingWindowUnit = WindowUnit.Games)
 {
     /// <summary>
     /// For a counting stat this is the season total. For a rate it is the season rate — the
