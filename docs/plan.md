@@ -221,6 +221,44 @@ lines.
 No `AddHealthChecks`. Most hosts want a liveness URL and will restart or mark the app unhealthy
 without one. `/health` returning database reachability and last successful ingestion time.
 
+### 2.5 Browser-driven UI tests — `todo`
+
+Ranks below the rest of this group — nothing here blocks a deployment — but it covers the one
+layer 224 unit tests cannot reach.
+
+Everything currently tested stops at the query service. Nothing exercises the Blazor circuit
+actually connecting, the JS interop that draws a chart, or a control re-querying and repainting.
+Those have broken in practice during this project: a comparison dropdown kept a stale selection,
+and a chart rendered against an untranslatable query that only surfaced as a runtime error in the
+browser. Both were caught by hand.
+
+Worth covering:
+
+- A page loads and its circuit connects, with no console errors.
+- Changing the stat, season or games filter re-queries and updates both the summary tiles and the
+  table.
+- Adding and removing a comparison updates the chips and the chart, and the picker resets.
+- `/players/{id}` for a goalie redirects to `/goalies/{id}`.
+- Empty states render when a season has no data.
+
+**Tooling.** Selenium is the familiar name, but Playwright for .NET is the better fit here: it
+auto-waits on elements rather than needing explicit waits, which matters for Blazor Server where
+every interaction is a round trip over a WebSocket and nothing is synchronous. It also drives
+headless cleanly for CI and can read console errors directly. Selenium would work; it will simply
+need more sleeping and produce more flakes.
+
+**The honest limitation: the charts are a `<canvas>`.** There is no DOM to assert against, so a
+browser test can confirm a chart was created and inspect the data through the Chart.js instance
+in JavaScript, but it cannot see whether the picture is right without screenshot comparison —
+which is brittle and probably not worth it. Chart *maths* is already covered properly by
+`TrendCalculationTests`; the browser layer should test the wiring, not the arithmetic.
+
+**Fixture shape.** These need the app running against a database in a known state. A
+`WebApplicationFactory` with `BLUELINE_DATA_DIR` pointed at a temporary directory and a small
+seeded database is the cheapest route, and keeps them off the live league API. Do not point them
+at the developer's real database — the tests would depend on whatever season happens to be
+loaded.
+
 ---
 
 ## 3. Deployment
@@ -242,6 +280,37 @@ No `Dockerfile` or `.dockerignore` yet.
 
 Depends on a decision — see `questions.md`. Free tiers shift, so verify current terms before
 committing.
+
+### 3.3 Write the deployment runbook — `todo`
+
+3.1 produces the image and 3.2 picks the host; this is the document for actually running it and
+keeping it running. Nothing of the sort exists, so today the only person who could deploy this is
+someone who has read the source.
+
+It needs to cover:
+
+- **First deploy.** Provision the volume, set `BLUELINE_DATA_DIR` to it, start the container. On
+  an empty database the app seeds a whole season by itself, which takes several minutes of
+  requests before the site has anything to show.
+- **The trap that ruins the free-tier story.** Seeding triggers on an *empty* database. If the
+  volume is not genuinely persistent — an ephemeral container filesystem, a free tier that resets
+  disk on redeploy — every restart re-ingests ~1,400 games. That is slow, hammers the league's
+  API, and looks like the app is merely slow to start. Verifying the volume actually survives a
+  restart is the single most important step, and the runbook should say so first.
+- **Migrations run automatically at startup** (`MigrateAsync` in `Program.cs`). Convenient, but it
+  means a failed migration is a failed boot rather than a degraded service. Say what to do when
+  that happens, and note that rolling the image back does not roll the schema back.
+- **Backups.** Copying `blueline.db` while the app is running is not safe on its own — with
+  write-ahead logging the recent commits live in the `-wal` sidecar. Use `VACUUM INTO` or the
+  SQLite backup API against a live connection. Worth stating plainly, because the naive `cp` looks
+  like it works right up until it doesn't.
+- **Upgrades and rollback.** Replace the image, keep the volume. Schema changes are the asymmetry.
+- **What to watch.** The health endpoint from 2.4, and the ingestion status the Data page already
+  surfaces — including the failed-game counts added in 2.2.
+- **Recovery.** If a stretch of games is missed while the host was asleep, `reconcile` is the fix
+  (2.3). The runbook should name it rather than leaving someone to rediscover it.
+
+Worth writing only once 3.1 and 3.2 are settled, since the specifics depend on the host.
 
 ---
 
