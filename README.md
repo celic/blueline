@@ -103,32 +103,34 @@ one finished season, roughly 1 MB for around 60,000 rows. On startup against an 
 app loads every archive it finds in `seed/`, so a deployment can carry several past seasons.
 Re-ingesting the same data from the league would take minutes per season and about 1,500 requests.
 
-Archives are **release assets, not repository contents**. They are generated data, replaced
-wholesale whenever regenerated, and they accumulate as seasons are added — so committing them
-would fill a code repository's history with binaries. `seed/manifest.json` lists what exists;
-fetch them with:
+**Archives are not in this repository and are not published anywhere.** They are collected data,
+needed only where the site actually runs, and they are not ours to redistribute. Build them from a
+database you have already filled:
 
 ```bash
-pwsh ./scripts/fetch-seasons.ps1     # or: powershell -File ./scripts/fetch-seasons.ps1
+dotnet run --project src/Blueline.Cli -- backfill 20252026
+pwsh ./scripts/build-seasons.ps1     # or: powershell -File ./scripts/build-seasons.ps1
 ```
 
-Then build the image, and they are baked in. With no archives present the image still builds and
-the app falls back to ingesting a season from the league API on first run.
+`seed/manifest.json` records what was built and each checksum, so an archive can be verified after
+being moved. Getting them to the deployment is a deliberate manual step: copy them into `seed/`
+before building the image so they are baked in, or mount them into the container's volume and
+import them there. With no archives present the image still builds and the app falls back to
+ingesting a season from the league API on first run.
 
 Each import runs in a single transaction, so the site serves nothing from that season until all of
 it has landed. Rows arrive in dependency order, so a partly applied import is not merely
 incomplete but wrong — leaderboards built from games whose stat lines have not arrived yet report
 the wrong leaders. It also means a failure leaves no trace instead of stranding a partial season
 that the empty-database check would mistake for real data. One unreadable archive costs only its
-own season.
+own season, and seasons therefore appear one at a time on a first boot.
 
 Other routes:
 
 | What | How |
 | --- | --- |
-| Load an archive by hand | `docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll import seed/20252026.blueline.gz` |
-| Make an archive from a season you hold | `dotnet run --project src/Blueline.Cli -- export 20252026 seed/20252026.blueline.gz` |
-| Publish archives for others | `pwsh ./scripts/publish-seasons.ps1 -Publish` |
+| Load an archive already on the volume | `docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll import /data/20252026.blueline.gz` |
+| Export a single season | `dotnet run --project src/Blueline.Cli -- export 20252026 seed/20252026.blueline.gz` |
 | Ingest from the league instead | Set `Ingestion__SeedArchiveDirectory=""` |
 | Load nothing at all | Set `Ingestion__SeedSeasonId=0` |
 

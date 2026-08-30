@@ -292,11 +292,11 @@ proxy.
 
 ### 3.4 Ship seasons as installable archives — `done`
 
-`export` and `import` in the CLI; archives are published as **release assets** rather than
-committed, since they are generated data of roughly 1 MB per season that accumulates as seasons
-are added and is replaced wholesale each time. `seed/manifest.json` lists what exists, with
-checksums; `scripts/fetch-seasons.ps1` downloads and verifies them, and
-`scripts/publish-seasons.ps1` exports and uploads.
+`export` and `import` in the CLI. Archives stay **out of the repository and unpublished**: they
+are collected data needed only where the site runs, about 1 MB per season, and redistributing a
+league's statistics in bulk is not a call to make casually. `scripts/build-seasons.ps1` exports
+them and records checksums in `seed/manifest.json`; moving them to a deployment is a deliberate
+manual step.
 
 An empty database loads **every** archive present, so a deployment can carry several past seasons.
 Two are built: 2025-26 and 2024-25, about 61,000 rows and 0.90 MB each. Both load into an empty
@@ -314,9 +314,10 @@ database in 23 seconds, against several minutes and ~1,500 requests per season t
 **Building the second season exposed a real bug**, which is the value of having done it rather
 than assumed it. See 4.2.
 
-**Not published.** There is no git remote and no `gh` CLI here, so the archives exist locally and
-the manifest carries their checksums, but nothing has been uploaded. `release.baseUrl` is empty,
-and the fetch script says so plainly rather than failing.
+**Publishing was considered and rejected.** An earlier iteration fetched archives from a GitHub
+release. That was dropped once the repository became public: the data is only needed in a deployed
+environment, and bulk redistribution of the league's statistics is a question better avoided than
+answered. The fetch script was removed with it.
 
 ### 3.2 Decide and set up the host — `todo`
 
