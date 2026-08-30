@@ -5,16 +5,18 @@ group 2 is what I would want fixed before this is exposed to the internet.
 
 Status of each item is one of: `todo`, `in progress`, `done`.
 
-**Revised 2026-08-30 against the answers in `questions.md`.** Four answers changed this plan rather
-than merely confirming it, and they are the four `todo` items worth reading first:
+**Revised 2026-08-30 against the answers in `questions.md`.** Groups 1 and 2 are now complete apart
+from 1.6, and what remains is mostly one piece of work:
 
-- **The combined regular-season + playoffs scope has gone** — 1.5, done.
-- **The ingestion trigger endpoint and the Refresh button have gone** — 2.6, done, though the
-  question it raised is still open (10).
-- **The home page becomes a streaks dashboard and Leaders moves off `/`** — group 6. This is the
-  largest piece of new work in the document, and it needs a days-based window that does not exist
-  yet (1.6).
-- **Host selection is off the table** — 3.2. Docker is the deployment.
+- **The home page becomes a streaks dashboard and Leaders moves off `/`** — group 6. The largest
+  piece of new work in the document, and it needs a days-based window that does not exist yet (1.6).
+- **Deployment is waiting on things outside the repository** — 3.2 needs a Docker daemon, 3.3 needs
+  3.2, and 4.3 needs the 2026-27 season to open on 2026-09-29.
+
+Both questions raised by the last revision are now answered. **Question 10 confirms 2.6 as built**:
+the schedule runs on the same host as a separate process, never behind a reachable API. **Question
+11 settles how streaks rank** — by how far a run departs from what that player normally does, not by
+total, since league leaders have their own page. Only question 7, on caching, is still open.
 
 Settled without work: box score stats only, no Corsi/Fenwick/xG (so no play-by-play ingestion and
 no third-party feed); two seasons is enough (4.2 is complete, not merely done-for-now); goalies
@@ -332,9 +334,10 @@ liked.
 Scheduling is out of the site as well, per question 6. `Ingestion:DailyJobEnabled` now defaults to
 **off**, and the schedule is a cron entry or scheduled task invoking the CLI's `daily` verb against
 the same database — recipes for Linux and Windows are in the README, alongside the compose file.
-Question 10 remains open only on *where* that job runs; the reading built here is option 1, the
-same host sharing the volume, because a SQLite file reached across a network share is the one
-deployment SQLite warns against.
+
+**Question 10 has since confirmed this shape**: same host, a CLI invocation or sidecar, a separate
+process for separation of responsibility rather than a separate machine, and never reachable as an
+API. That is what was built, so nothing here needs revisiting.
 
 **Turning the schedule off exposed a coupling that would have been a bad first-boot bug.** Seeding
 an empty database lived behind the same `DailyJobEnabled` check as the daily pass, so a deployment
@@ -561,14 +564,27 @@ Leaders moves off the home page to a page of its own.
 
 Sequenced so each step is useful on its own.
 
-### 6.1 Move Leaders off `/` — `todo`
+### 6.1 Move Leaders off `/` — `done`
 
-Mechanical, and worth doing first so the dashboard has an empty page to grow into rather than being
-grafted onto a working one.
+`Home.razor` is now `Leaders.razor` at `/leaders`, and `/` is a landing page of its own — which is
+what group 6 needed: an empty page for the dashboard to grow into rather than a working table to be
+grafted onto.
 
-`Home.razor` becomes `Leaders.razor` at `/leaders`, and the nav's first entry points there. Two
-details not to lose: `/` must keep resolving — a bookmark landing on a 404 is the visible cost of
-this move — and the UI tests navigate to `/` expecting leaders, so they move with it.
+**Thin, but not a placeholder.** A root that said "coming soon" would be worse than what it
+replaced. It carries the four sections and a line of real numbers — 2,792 games across two seasons,
+2024-25 to 2025-26 — read from the database rather than written into the markup, so it says
+something true about the deployment it is running on and shows the empty state when there is
+nothing stored.
+
+The nav gained a Home entry rather than relying on the brand alone; `Match="NavLinkMatch.All"`
+keeps it from lighting up on every page, since every path starts with `/`.
+
+Two UI tests navigated to `/` expecting leaders and now go to `/leaders`. A new one clicks from the
+root through to the leaders table, which is the part of this move a reader would actually notice —
+the old bookmark still resolving. 26 UI tests pass.
+
+Verified in a browser at both routes: the landing page renders its four cards and the season line,
+and `/leaders` still lists McDavid at 138 points.
 
 ### 6.2 Compute streaks — `todo`
 
@@ -595,14 +611,19 @@ Graphically dense, per the answer: panels of small charts rather than a page of 
 links through to the trend page for its subject, so the dashboard is a way into the site rather than
 a terminus.
 
-- **"Interesting" needs a definition.** Ranking by raw total puts the same handful of stars on the
-  page every day, which is the opposite of what "changes daily" asks for. Ranking by departure from
-  a player's own baseline surfaces who is actually hot — a fourth-liner with 8 points in 10 games is
-  the more interesting fact. Which of those the page should mean is question 11.
+- **Ranked by departure from a player's own baseline, not by total** — question 11, answered: the
+  most interesting runs are what belongs here, and league leaders already have their own page after
+  6.1. So a fourth-liner with 8 points in 10 games outranks a star with 12, because the first is
+  news and the second is Tuesday. This needs a baseline per player — most naturally their own rate
+  across the season — and a guard for players with too little history to have one.
+- **Week by week is fast enough.** The answer explicitly allows it, which takes the pressure off
+  daily churn: the page does not need to manufacture movement on a night with two games.
 - **The dashboard changes with the data, not with the clock.** Its content moves because a trailing
   window moves, and on an off day nothing changes. This matters in the off-season, when the newest
   game is months old and every "last 10 games" panel is frozen: the page needs to say what it is
-  showing rather than presenting stale windows as current form.
+  showing rather than presenting stale windows as current form. Week-by-week movement being
+  acceptable makes this easier — there is no reason to force variety that the games did not
+  produce.
 - **Sparklines, not full charts.** Chart.js is already vendored and `TrendDatasets` already builds
   the shapes; a panel wants a small line with no axes, not the full trend chart.
 

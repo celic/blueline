@@ -104,6 +104,18 @@ h2 { font-size: 1.05rem; margin: 0 0 .75rem; font-weight: 600; }
     .grid-2 { grid-template-columns: 1fr; }
 }
 
+/* Equal-width cards that reflow rather than squash: the landing page's sections. */
+.tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.25rem;
+}
+
+.tile { display: block; color: inherit; }
+.tile:hover { border-color: var(--accent-strong); text-decoration: none; }
+.tile h2 { margin: 0 0 .35rem; font-size: 1.05rem; }
+.tile p { margin: 0; }
+
 /* --- controls --- */
 
 .controls {

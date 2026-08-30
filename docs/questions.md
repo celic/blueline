@@ -5,9 +5,9 @@ nothing**, so none of these block progress — they just risk me building the wr
 
 Answer inline under each question; I will clear them out as they are resolved.
 
-**Updated 2026-08-30.** Questions 1-6, 8 and 9 are answered and folded into `plan.md`; they are
-kept below in condensed form as a record of what was decided. Question 7 is still open, and
-answering 9 raised two new ones — 10 and 11.
+**Updated 2026-08-30.** Everything here is answered except question 7, which asked for a number
+rather than an opinion and is waiting on a measurement I can take. Answers are kept below in
+condensed form as a record of what was decided; the work they imply lives in `plan.md`.
 
 ---
 
@@ -37,41 +37,6 @@ is to measure a season's cached leaders rather than reason about them. Two thing
 indefinite retention, and a separate short expiry for the in-progress season, invalidated when
 ingestion writes.
 
-### 10. How should the scheduled ingestion actually run?
-
-From your answer to 6: no trigger API, and a cron job on a separate system inserting into the
-existing database. The first half is unambiguous and I will do it. The second half does not fit
-SQLite — the database is a file, and reaching it from another machine means a network share, where
-SQLite's locking is unreliable in a way that corrupts rather than stalls.
-
-Three readings, described in full in plan.md 2.6:
-
-1. **Scheduled on the same host, sharing the volume** — `docker exec` or a sidecar running the CLI's
-   `daily` verb. Outside the web app, no trigger API, one machine writing one file.
-2. **Genuinely another machine**, which means moving off SQLite. Possible by design — the connection
-   string is overridable — but it gives up the one-container shape.
-3. **Keep the in-process worker**, reading your answer as being about the trigger API only.
-
-**Default if unanswered:** option 1, and the endpoint and Refresh button removed regardless.
-
-**Built on that default.** The removals are done, and the schedule now lives outside the site by
-default — the README carries cron and scheduled-task recipes. Only *where* the job runs is still
-yours to say; switching to option 3 is one setting (`Ingestion__DailyJobEnabled=true`), and option 2
-is a connection string plus a provider.
-
-### 11. On the new home page, what makes a streak "interesting"?
-
-You asked for the most interesting active streaks and for content that changes day to day. Those two
-pull against each other, and which one wins is a design decision I should not make silently.
-
-- **Ranked by raw total**, the same handful of stars hold the page for weeks. Accurate, and static.
-- **Ranked by departure from a player's own baseline**, a fourth-liner with 8 points in 10 games
-  outranks McDavid with 12. More surprising, more genuinely daily, and arguably the more interesting
-  fact — but the page stops being a list of the best players.
-
-**Default if unanswered:** rank by total, with a qualification threshold, and revisit once there is a
-live season to look at — the answer is much easier to judge against a real page than in the abstract.
-
 ---
 
 ## Settled
@@ -96,6 +61,15 @@ about verifying the image.)*
 outside the app. *(plan.md 2.6, and question 10 above.)*
 
 **8. Is mobile first-class?** No — best-effort.
+
+**10. How should the scheduled ingestion run?** On the same host, as a CLI invocation or a sidecar —
+a separate process for separation of responsibility, not a separate machine — and never triggered
+through an externally reachable API. *(This is what plan.md 2.6 built; no change needed.)*
+
+**11. What makes a streak "interesting"?** The most interesting ones, not the highest totals —
+league leaders already have their own page. Changing week by week rather than day by day is fine.
+*(Settles the ranking question in plan.md 6.3: rank by how far a run departs from what that player
+normally does, not by raw total.)*
 
 **9. Anything not in plan.md?** The home page should surface the most interesting active streaks —
 most points over the last 10 games, goals over the last 20, best save percentage over the past two
