@@ -228,43 +228,34 @@ would redirect a plain-HTTP probe. In a container with TLS terminating upstream 
 configured and it does not redirect, which is why this works today — but a host that does
 configure one needs checking.
 
-### 2.5 Browser-driven UI tests — `todo`
+### 2.5 Browser-driven UI tests — `done`
 
-Ranks below the rest of this group — nothing here blocks a deployment — but it covers the one
-layer 224 unit tests cannot reach.
+24 Playwright tests in `tests/Blueline.UiTests`, covering page loads, the goalie redirect, empty
+states, every trend control, and comparison. They run in about 3 seconds.
 
-Everything currently tested stops at the query service. Nothing exercises the Blazor circuit
-actually connecting, the JS interop that draws a chart, or a control re-querying and repainting.
-Those have broken in practice during this project: a comparison dropdown kept a stale selection,
-and a chart rendered against an untranslatable query that only surfaced as a runtime error in the
-browser. Both were caught by hand.
+**They earned their keep immediately**, finding a bug the unit suite could not: a player with no
+games in the selected season or scope rendered stat tiles reading zero above a blank chart
+instead of an empty state. `GetPlayerTrendAsync` returns an *empty series* rather than null for a
+known player, and `PlayerTrend` only checked for null — the goalie and team pages already handled
+both. Fixed.
 
-Worth covering:
+How the harness works:
 
-- A page loads and its circuit connects, with no console errors.
-- Changing the stat, season or games filter re-queries and updates both the summary tiles and the
-  table.
-- Adding and removing a comparison updates the chips and the chart, and the picker resets.
-- `/players/{id}` for a goalie redirects to `/goalies/{id}`.
-- Empty states render when a season has no data.
+- **The site runs as a real process**, not an in-memory test server. Blazor Server needs a genuine
+  socket for its circuit, and whether the browser connects to it is the entire point.
+- **The database is built by the fixture**, through migrations rather than `EnsureCreated` — the
+  app runs `MigrateAsync` at startup and would otherwise try to create tables that already exist
+  and fail to boot. Ingestion is switched off, so no test touches the league's API and none
+  depends on whichever season a developer happens to have loaded.
+- **Console errors fail the test.** A page that renders while throwing underneath is not passing.
+- **The charts are read through the live Chart.js instance**, since a canvas offers no DOM. That
+  covers dataset counts, labels and scale types — the wiring — while the arithmetic stays in
+  `TrendCalculationTests` where it belongs.
 
-**Tooling.** Selenium is the familiar name, but Playwright for .NET is the better fit here: it
-auto-waits on elements rather than needing explicit waits, which matters for Blazor Server where
-every interaction is a round trip over a WebSocket and nothing is synchronous. It also drives
-headless cleanly for CI and can read console errors directly. Selenium would work; it will simply
-need more sleeping and produce more flakes.
+Playwright over Selenium, as the item argued: the assertions poll, which suits Blazor Server where
+every interaction is a round trip and nothing is synchronous. No explicit sleeps were needed.
 
-**The honest limitation: the charts are a `<canvas>`.** There is no DOM to assert against, so a
-browser test can confirm a chart was created and inspect the data through the Chart.js instance
-in JavaScript, but it cannot see whether the picture is right without screenshot comparison —
-which is brittle and probably not worth it. Chart *maths* is already covered properly by
-`TrendCalculationTests`; the browser layer should test the wiring, not the arithmetic.
-
-**Fixture shape.** These need the app running against a database in a known state. A
-`WebApplicationFactory` with `BLUELINE_DATA_DIR` pointed at a temporary directory and a small
-seeded database is the cheapest route, and keeps them off the live league API. Do not point them
-at the developer's real database — the tests would depend on whatever season happens to be
-loaded.
+Note for CI: `playwright.ps1 install chromium` must run once, and it downloads roughly 300 MB.
 
 ---
 

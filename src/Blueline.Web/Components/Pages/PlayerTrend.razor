@@ -7,9 +7,15 @@
 
 <PageTitle>@(_primary?.SubjectName ?? "Player") — Blueline</PageTitle>
 
-@if (_primary is null)
+@* A known player with no games in the chosen season or scope comes back as an empty series, not
+   as null, so both cases have to be handled — otherwise the page renders stat tiles reading zero
+   above a blank chart. The goalie and team pages already do this. *@
+@if (_primary is null || _primary.Points.Count == 0)
 {
-    <div class="empty">No stored games for this player in @StatsQueryService.FormatSeason(_seasonId).</div>
+    <div class="empty">
+        No stored games for this player in @StatsQueryService.FormatSeason(_seasonId)
+        (@_scope.Label().ToLowerInvariant()).
+    </div>
 }
 else
 {

@@ -70,7 +70,13 @@ Other CLI commands:
 Tests:
 
 ```bash
-dotnet test
+dotnet test tests/Blueline.Tests
+```
+
+Browser tests drive the real site through Playwright. They need the browser downloaded once:
+
+```bash
+tests/Blueline.UiTests/bin/Debug/net10.0/playwright.ps1 install chromium
 ```
 
 ## Where the rest is written down
