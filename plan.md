@@ -99,16 +99,39 @@ What is missing is reach, not the mechanism:
 
 ## 2. Robustness — before deploying
 
-### 2.1 Enable SQLite WAL mode — `todo`
+### 2.1 SQLite connection settings — `done`
 
-Nothing sets the journal mode, so SQLite uses the default rollback journal, where a writer
-blocks readers. The daily ingestion job writes on a background thread while Blazor circuits read
-on request threads — the exact shape that produces intermittent `database is locked` errors under
-any real traffic.
+Done, but **the original diagnosis here was wrong on its main point** and the correction is worth
+recording, because it changes how urgent this was.
 
-- Execute `PRAGMA journal_mode=WAL;` on startup (and set a `busy_timeout`) in
-  `AddBluelineCore` in `src/Blueline.Ingestion/ServiceCollectionExtensions.cs`.
-- This has not caused a visible failure yet only because the site has had one user at a time.
+The claim was that nothing set the journal mode, so SQLite fell back to its blocking rollback
+journal. That came from grepping the source for `PRAGMA` and `journal` and finding nothing.
+Measuring instead of grepping shows **EF Core's SQLite provider already enables WAL** — raw
+`Microsoft.Data.Sqlite` defaults to `delete`, but the EF provider does not. So the headline risk,
+readers being blocked by the ingestion job, was never real.
+
+Two things measurement did turn up:
+
+- **`busy_timeout` is 0 under EF.** SQLite never sleeps on a contended lock. It does not fail on
+  contact, as first assumed — the provider retries at its own level until `CommandTimeout` — but
+  that retrying is a busy spin rather than an efficient wait.
+- **A contended write blocks for the full command timeout, 30 seconds by default.** The risk was
+  never a `database is locked` error; it was a long stall. Setting `busy_timeout` does not shorten
+  that — measured at ~30s either way — it only makes the waiting cheap. `CommandTimeout` is the
+  knob that bounds it, and it is left at the default for now.
+
+Severity is lower than this item originally implied: under WAL, plain reads never contend, and the
+only writers are the daily job and the Data page's "Refresh now" button. The stall needs those two
+to overlap.
+
+`SqliteConnectionInterceptor` now applies `journal_mode=WAL` (explicit rather than trusting a
+provider default that could shift), `busy_timeout` and `synchronous=NORMAL` to every SQLite
+connection, skipping non-SQLite connections so the documented Postgres override still works.
+Covered by `SqliteConcurrencyTests`, including a test that fails if the provider ever stops
+defaulting to WAL.
+
+Still open: whether to lower `CommandTimeout` so an overlapping manual refresh fails in a few
+seconds rather than stalling for thirty.
 
 ### 2.2 Retry transient API failures, and record games that fail — `todo`
 

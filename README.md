@@ -142,6 +142,12 @@ SQLite, at `%LOCALAPPDATA%\Blueline\blueline.db` by default. Set `BLUELINE_DATA_
 point it at a mounted volume when deploying. The web app and the CLI are separate processes, so
 they resolve the path the same explicit way rather than relying on the working directory.
 
+Every SQLite connection is configured by `SqliteConnectionInterceptor`: write-ahead logging (so
+reads are never blocked by the ingestion job), a busy timeout (so a contended write waits on the
+lock rather than spinning), and `synchronous=NORMAL` (safe under WAL — at worst a power cut costs
+the last transaction, and every row is re-derivable from the league API anyway). Non-SQLite
+connections are left alone, so the Postgres override below still works.
+
 SQLite was chosen for deployment reasons: it needs no second service, so hosting is one container
 plus one small volume. A full season is roughly 50,000 stat rows, which SQLite handles without
 strain. Everything goes through EF Core, so moving to PostgreSQL is a provider swap in

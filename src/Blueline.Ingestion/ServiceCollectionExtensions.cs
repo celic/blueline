@@ -18,7 +18,10 @@ public static class ServiceCollectionExtensions
     {
         var connectionString = BluelineDbPath.ResolveConnectionString(configuration.GetConnectionString("Blueline"));
 
-        services.AddDbContext<BluelineDbContext>(options => options.UseSqlite(connectionString));
+        services.AddDbContext<BluelineDbContext>(options => options
+            .UseSqlite(connectionString)
+            // Without this, the background ingestion job's writes block page reads.
+            .AddInterceptors(new SqliteConnectionInterceptor()));
         services.AddScoped<StatsQueryService>();
         services.AddScoped<NhlIngestionService>();
 
