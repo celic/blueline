@@ -60,9 +60,8 @@ by re-running the backfill:
 The pages hide the OTL/PTS/PTS% columns whenever the scope includes playoff games, and the team
 trend page explains why a points line flattens if you chart points across the playoffs.
 
-Still open, deliberately: playoff trends are plotted by game number like everything else. Series
-vary in length and the gaps between rounds are long, so plotting by date would read more
-honestly — worth revisiting if playoff charts get real use.
+Still open, deliberately: playoff trends are plotted by game number like everything else, which
+hides the long gaps between rounds. Tracked as its own item now — see 1.4.
 
 ### 1.3 Extend multi-player comparison — `todo`
 
@@ -94,6 +93,46 @@ What is missing is reach, not the mechanism:
 - **The API cannot express it.** `/api/players/{id}/trend` returns one subject, so an external
   consumer has to make N calls and align the series itself. A `?compare=id,id` parameter, or an
   endpoint accepting several ids, would let the API answer the same question the UI does.
+
+### 1.4 Offer a date x axis as well as game number — `todo`
+
+Every chart plots game number on the x axis, evenly spaced. `TrendPoint.Date` is already
+computed, stored and serialised to the browser, so this is presentation only — no query or
+schema change.
+
+Game number hides every gap in the calendar:
+
+- **A player who misses six weeks injured draws an unbroken line.** Game 40 sits right beside
+  game 41 as though nothing happened. For a site whose whole premise is trends over time, this
+  is the most distorting case, and it has nothing to do with the playoffs.
+- **Playoff series vary in length and the rounds have long gaps between them**, so a run reads
+  as evenly paced when it was not.
+- **In the combined scope the week between the regular season and the playoffs vanishes**, and
+  the two stretches run together as though continuous.
+
+Keep both axes rather than replacing one. They answer different questions: game number is the
+honest axis for per-game pace and for comparing players whose games played differ, while a date
+axis answers "when was he hot" and shows layoffs for what they are.
+
+**The trap worth naming**, because falling into it looks like success: simply formatting the
+existing category-axis labels as dates is *not* this feature. The spacing stays uniform, so every
+gap above remains invisible — the chart would read as fixed while still misleading. It needs a
+real time scale with proportional spacing.
+
+Implementation notes:
+
+- Chart.js needs a date adapter for its time scale (`chartjs-adapter-date-fns` or the Luxon
+  equivalent), which means vendoring a second library beside `chart.umd.js`. That is the bulk of
+  the cost and the reason this has not been done in passing.
+- The data shape changes for this mode: series become `{x, y}` points carrying their own dates
+  rather than sharing one label index. `ChartSpec.Labels` and the `Pad` helpers in
+  `PlayerTrend.razor` and `GoalieTrend.razor` exist only to align comparison series by game
+  number, and are unnecessary once each series carries its own x values.
+- Decide what the rolling window means here. It stays "N games", so over a stretch containing a
+  layoff a 10-game average spans a much longer calendar period than its width on the axis
+  suggests. Either accept that, or offer a days-based window alongside it.
+- The control belongs next to the existing View toggle on the three trend pages. No API change
+  is needed — points already carry `date`, so external consumers can plot by date today.
 
 ---
 
