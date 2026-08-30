@@ -5,6 +5,23 @@ group 2 is what I would want fixed before this is exposed to the internet.
 
 Status of each item is one of: `todo`, `in progress`, `done`.
 
+**Revised 2026-08-30 against the answers in `questions.md`.** Four answers changed this plan rather
+than merely confirming it, and they are the four `todo` items worth reading first:
+
+- **The combined regular-season + playoffs scope has to go** — 1.5. The toggle was built with three
+  options; the answer allows two.
+- **The ingestion trigger endpoint and the Refresh button have to go** — 2.6, which also raises a
+  question the answer does not settle.
+- **The home page becomes a streaks dashboard and Leaders moves off `/`** — group 6. This is the
+  largest piece of new work in the document, and it needs a days-based window that does not exist
+  yet (1.6).
+- **Host selection is off the table** — 3.2. Docker is the deployment.
+
+Settled without work: box score stats only, no Corsi/Fenwick/xG (so no play-by-play ingestion and
+no third-party feed); two seasons is enough (4.2 is complete, not merely done-for-now); goalies
+route by position and never share a comparison with skaters, which is how 1.1 was already built;
+mobile stays best-effort (group 5).
+
 ---
 
 ## 1. Data already collected but unreachable
@@ -114,7 +131,46 @@ because the spacing was measured — a glance at the chart shape would not have 
 
 Still open: the rolling window remains "N games", so across a layoff a 10-game average spans far
 more calendar time than its width on the date axis suggests. A days-based window would be a
-separate decision.
+separate decision — and the answer to question 9 has now made that decision for us. See 1.6.
+
+### 1.5 Drop the combined scope — `todo`
+
+The answer to question 4 is a toggle that **never merges** regular season and playoffs. `GameScope`
+currently offers three options, and `All` merges them. It has to go.
+
+Small but not trivial, because the scope threads through everything:
+
+- `GameScope.All` and its arms in `GameTypes()`, `Label()` and `ShortLabel()`.
+- `ScopePicker`, which renders one control on all seven pages.
+- `GameScopes.Parse` — a bookmarked `?scope=All` must keep rendering something rather than
+  erroring, and the existing fallback to `RegularSeason` already does exactly that.
+- Every test that asserts on combined totals, and the Data page's split counts.
+
+**Worth deleting for its own sake, not just to match the answer.** Combined is the scope that makes
+the columns lie: standings points, OTL and points percentage are all meaningless across playoff
+games, which is why 1.2 ended up hiding those columns whenever the scope included them. Removing
+the option removes the special case rather than papering over it.
+
+The second half of the answer — playoff charts numbered within the playoffs themselves — **is
+already how it works**, and needs no change. Rows are scope-filtered before `BuildPoints` runs, so
+the x axis is an index into the filtered rows: game 1 in the playoff scope is a club's first playoff
+game, not their 83rd of the year. Worth a test that pins it, since nothing currently asserts it.
+
+### 1.6 Add a days-based rolling window — `todo`
+
+The rolling window is "the last N games". Question 9 asks for "highest save percentage over the past
+two weeks", which is not expressible that way: two weeks is four starts for one goalie and eight for
+another, so an N-game window compares different spans of time and calls it the same statistic.
+
+This was noted at the end of 1.4 as a possible refinement. It is now a prerequisite for group 6, and
+should be built with it rather than before it.
+
+- `BuildPoints` takes a window count; it needs to accept a window expressed in days, which means
+  looking back by `Date` rather than by index.
+- The two are not interchangeable and both should stay. "Last 10 games" is the right question for
+  per-game pace; "last 14 days" is the right question for who is hot right now.
+- The trend pages need to say which one is in use, since the two produce visibly different lines
+  over a layoff and nothing on the chart would otherwise explain the difference.
 
 ---
 
@@ -257,6 +313,43 @@ every interaction is a round trip and nothing is synchronous. No explicit sleeps
 
 Note for CI: `playwright.ps1 install chromium` must run once, and it downloads roughly 300 MB.
 
+### 2.6 Remove the ingestion trigger, and move the schedule outside the app — `todo`
+
+Question 6 answered: there should be no API that triggers data collection; a cron job on a separate
+system should insert into the database instead.
+
+The removals are straightforward and should happen regardless of what replaces them, because today
+`POST /api/ingestion/run` is **unauthenticated** — any visitor can make the site fetch from the
+league's API, as many times as they like:
+
+- `POST /api/ingestion/run` in `StatsEndpoints.cs`.
+- The "Refresh now" button on the Data page, which calls `IngestRecentAsync` directly.
+- The Data page keeps showing ingestion *status*. Reading what happened is not triggering it.
+
+Removing the button also settles the loose end left at 2.1: with it gone, the only writer is
+whatever runs on a schedule, so a contended write needs two scheduled runs to overlap rather than a
+visitor clicking during one. Lowering `CommandTimeout` stops being worth doing.
+
+**What replaces it is not settled, and the answer contains a tension worth surfacing before I
+build.** "A separate system that just inserts data into the existing database" does not fit SQLite:
+the database is a file, and reaching it from another machine means a network share, which is the one
+deployment SQLite documentation explicitly warns against — its locking is unreliable over SMB and
+NFS, and this is corruption rather than a stall. Three readings, in the order I would pick them:
+
+1. **A scheduled run on the same host, sharing the volume** — `docker exec` into the container, or a
+   sidecar container mounting the same volume, invoking the CLI's existing `daily` verb. Satisfies
+   "outside the web app" and "no trigger API", keeps one file with one machine writing to it, and
+   needs no new code beyond deleting the endpoint. This is what I would do.
+2. **Genuinely another machine**, which requires the database to stop being SQLite. The connection
+   string is already overridable and the archive format is provider-neutral precisely so this stays
+   possible — but it trades away the single-container free-hosting shape that drove the original
+   design.
+3. **Keep `DailyIngestionWorker` in-process** and treat the answer as being about the *trigger API*
+   only. Fewest moving parts, but it is not what the answer describes.
+
+`DailyJobEnabled` already switches the in-process worker off, so 1 and 3 differ by one setting plus
+a scheduled command — the decision is reversible and cheap either way. Recorded as question 10.
+
 ---
 
 ## 3. Deployment
@@ -319,16 +412,36 @@ release. That was dropped once the repository became public: the data is only ne
 environment, and bulk redistribution of the league's statistics is a question better avoided than
 answered. The fetch script was removed with it.
 
-### 3.2 Decide and set up the host — `todo`
+### 3.2 Verify the image — `todo`
 
-Depends on a decision — see `questions.md`. Free tiers shift, so verify current terms before
-committing.
+**The host question is closed**: question 5 answered that the Dockerfile is the run tool for now, so
+there is no provider to choose, no free-tier terms to check and no domain to buy. What remains is
+the part of 3.1 that could not be finished — the image has never been built, because no Docker
+daemon was available on this machine.
+
+Three things to confirm on a machine that has one, all of which fail at run time rather than build
+time and so are invisible until then:
+
+- **The image builds**, and both the site and the CLI run from it.
+- **The non-root `app` user can write to a mounted volume.** A host-mounted directory arrives owned
+  by the host's user; if it does not, the app cannot create its database and the failure surfaces as
+  a boot crash rather than a permissions message.
+- **`UseHttpsRedirection` behind a TLS-terminating proxy**, flagged at the end of 2.4. It works
+  today only because no HTTPS port is configured in the container.
+
+Free-tier hosting stays a live constraint on the design even though no host is being picked — the
+whole reason this is one container and one small volume.
 
 ### 3.3 Write the deployment runbook — `todo`
 
-3.1 produces the image and 3.2 picks the host; this is the document for actually running it and
+3.1 produces the image and 3.2 confirms it runs; this is the document for actually running it and
 keeping it running. Nothing of the sort exists, so today the only person who could deploy this is
 someone who has read the source.
+
+Now Docker-specific rather than host-specific, which makes it writable as soon as 3.2 passes. It
+gains one section from 2.6: **how the scheduled ingestion is set up**, since the app will no longer
+do it for itself and a deployment that skips this step goes stale silently — the site keeps serving
+yesterday's data and nothing about it looks broken.
 
 It needs to cover:
 
@@ -379,10 +492,11 @@ Verified against the live database: 25 of 25 genuinely abbreviated names resolve
 (`C. Petersen` is now `Cal Petersen`), the five initialised names were correctly left alone, and
 a second run performed no enrichment at all — the nightly roster walk is gone.
 
-### 4.2 Load more seasons — `done` for 2024-25
+### 4.2 Load more seasons — `done`
 
-2024-25 is loaded and archived alongside 2025-26. Adding another season is now a `backfill`
-followed by an `export`.
+2024-25 is loaded and archived alongside 2025-26. Question 1 asked for two seasons, to prove
+multi-season works, with older data explicitly not a concern — so this is finished rather than
+paused. Adding another season, if that changes, is a `backfill` followed by an `export`.
 
 **Loading a second season failed at first**, and the cause was a design error rather than bad
 data: `UNIQUE constraint failed: Teams.Abbrev`.
@@ -414,11 +528,78 @@ appear without a manual run.
 ## 5. Polish
 
 - **Caching.** `/api/leaders` aggregates ~50,000 rows on every page load. Completed seasons never
-  change, so a memory cache keyed on season + stat would make this free.
-- **Mobile.** The CSS has responsive breakpoints but has only been checked at desktop width. The
-  chart, the controls row, and the wide tables all need a look on a phone.
+  change, so a memory cache keyed on season + stat would make this free. Question 7 was answered
+  "depends how much sits in cache, needs further discussion", which is the right instinct — so the
+  first move is to **measure** what a season's cached leaders actually weigh rather than argue about
+  it. Group 6 raises the stakes: a dashboard of streaks is many aggregations per page load, not one.
+- **Mobile.** Best-effort, per question 8. The CSS has responsive breakpoints but has only been
+  checked at desktop width. Fix it if it looks broken; do not treat phones as a first-class target.
 - **Accessibility.** Colour alone currently distinguishes compared players; the chips carry a
   colour swatch but no other marker. Chart tooltips are not keyboard reachable.
 - **Team colours in charts.** The palette is four fixed colours. Team pages could use each club's
   own colour.
 - **Empty and error states.** Pages handle "no data" but not "the query failed".
+
+---
+
+## 6. The home page — streaks and a dashboard
+
+New, from question 9. The largest piece of outstanding work in this document, and the only group
+that is entirely unbuilt. The ask: the home page should surface **the most interesting active
+streaks** — most points over the last 10 games, goals over the last 20, best save percentage over
+the past two weeks — and be graphically dense, with charts and comparisons, changing day to day.
+Leaders moves off the home page to a page of its own.
+
+Sequenced so each step is useful on its own.
+
+### 6.1 Move Leaders off `/` — `todo`
+
+Mechanical, and worth doing first so the dashboard has an empty page to grow into rather than being
+grafted onto a working one.
+
+`Home.razor` becomes `Leaders.razor` at `/leaders`, and the nav's first entry points there. Two
+details not to lose: `/` must keep resolving — a bookmark landing on a 404 is the visible cost of
+this move — and the UI tests navigate to `/` expecting leaders, so they move with it.
+
+### 6.2 Compute streaks — `todo`
+
+The query work, and the part with real substance in it. Depends on 1.6, since "the past two weeks"
+is a days-based window and nothing today can express one.
+
+- **A streak here is a leaderboard over a trailing window**, not a consecutive-games run. "Most
+  points in the last 10 games" ranks every player over their last 10; "longest point streak" — a
+  genuine consecutive run — is a different computation and a natural second wave.
+- **Windows come in both kinds.** Games for skater volume, days for anything where availability
+  varies, which is most of what makes a goalie interesting.
+- **Qualification matters more here than on a season leaderboard.** Over 14 days a goalie with one
+  start can post a .960 and top the board, which is noise presented as a finding. 1.1 already
+  established the pattern with `RateQualificationMinutes`, and a window-scaled version of it is what
+  keeps the panel honest.
+- **Cost is the open risk.** Season leaders aggregate ~50,000 rows once; a dashboard of six panels
+  aggregates repeatedly, on the page every visitor lands on first. Worth measuring before building
+  the UI on top of it, and it is what turns the caching bullet in group 5 from polish into
+  something load-bearing.
+
+### 6.3 Build the dashboard — `todo`
+
+Graphically dense, per the answer: panels of small charts rather than a page of tables. Every panel
+links through to the trend page for its subject, so the dashboard is a way into the site rather than
+a terminus.
+
+- **"Interesting" needs a definition.** Ranking by raw total puts the same handful of stars on the
+  page every day, which is the opposite of what "changes daily" asks for. Ranking by departure from
+  a player's own baseline surfaces who is actually hot — a fourth-liner with 8 points in 10 games is
+  the more interesting fact. Which of those the page should mean is question 11.
+- **The dashboard changes with the data, not with the clock.** Its content moves because a trailing
+  window moves, and on an off day nothing changes. This matters in the off-season, when the newest
+  game is months old and every "last 10 games" panel is frozen: the page needs to say what it is
+  showing rather than presenting stale windows as current form.
+- **Sparklines, not full charts.** Chart.js is already vendored and `TrendDatasets` already builds
+  the shapes; a panel wants a small line with no axes, not the full trend chart.
+
+### 6.4 Off-season and thin-data behaviour — `todo`
+
+Everything above assumes recent games. Right now there are none — 2025-26 is complete and 2026-27
+does not open until **2026-09-29**, so the first version of this page will be built entirely against
+a season that has ended. That is a feature: it forces the empty and stale states to be designed
+first rather than discovered in September.
