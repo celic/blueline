@@ -239,15 +239,10 @@ public static class StatsEndpoints
                 await queries.GetIngestionStatusAsync(ct))
             .WithSummary("What is stored and how the last ingestion run went.");
 
-        api.MapPost("/ingestion/run", async (
-                NhlIngestionService ingestion,
-                CancellationToken ct,
-                int days = 3) =>
-            {
-                var count = await ingestion.IngestRecentAsync(DateOnly.FromDateTime(DateTime.UtcNow), Clamp(days, 30), ct);
-                return Results.Ok(new { gamesRefreshed = count });
-            })
-            .WithSummary("Run the daily ingestion now instead of waiting for the schedule.");
+        // Deliberately read-only. There was a POST /ingestion/run here and it is not coming back:
+        // it let any unauthenticated caller make the site fetch from the league's API as often as
+        // they liked, and triggering collection over HTTP is the wrong shape for it regardless.
+        // Ingestion is a scheduled job run against the database — see the README.
 
         return app;
     }

@@ -4,8 +4,18 @@ public class IngestionOptions
 {
     public const string SectionName = "Ingestion";
 
-    /// <summary>Set false to disable the daily background job (useful when running the CLI by hand).</summary>
-    public bool DailyJobEnabled { get; set; } = true;
+    /// <summary>
+    /// Whether the site schedules its own daily ingestion pass.
+    ///
+    /// Off by default: collecting data is a scheduled job, and a scheduled job belongs outside the
+    /// web app, where it can be run, watched and retried without a request pipeline in front of it.
+    /// The README gives the recipe — a cron entry or scheduled task invoking the CLI's
+    /// <c>daily</c> verb against the same database.
+    ///
+    /// Turn it on for a deployment that would rather carry the schedule in-process, or for local
+    /// development. Seeding an empty database is unaffected either way.
+    /// </summary>
+    public bool DailyJobEnabled { get; set; }
 
     /// <summary>
     /// When the daily job runs, in UTC. Defaults to 11:00 UTC (roughly 07:00 Eastern), by which

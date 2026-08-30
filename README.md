@@ -36,11 +36,13 @@ with no warnings.
 - **A date or game-number x axis.** Game number compares like for like; the date axis spaces
   games by when they were actually played, so an injury layoff or the gap between playoff rounds
   shows up instead of being flattened away.
-- **A games filter** on every page — regular season, playoffs, or both combined. The default is
+- **A games filter** on every page — regular season or playoffs, never merged, because the two
+  are scored differently and a combined total is a figure nobody quotes. The default is
   configurable via `Display:DefaultGameScope`, and the API takes the same choice as `?scope=`.
 - **A JSON API** at `/api` serving the same data.
-- **Daily ingestion** that pulls new games automatically and re-reads recent dates so the
-  league's after-the-fact stat corrections are picked up.
+- **Daily ingestion** that pulls new games and re-reads recent dates so the league's
+  after-the-fact stat corrections are picked up. Run on a schedule from outside the site, which
+  has no endpoint or button that triggers collection.
 
 ## Running it
 
@@ -145,8 +147,39 @@ boot. Restart once and check `status` reports the same games before trusting any
 
 ### Keeping it current
 
-The daily job takes over once the database has data, re-reading a short window each day so late
-stat corrections are picked up. If the host was asleep for longer than that window, fill the gap:
+**The site does not collect data on a schedule.** Nothing in the web app triggers ingestion, and
+there is no endpoint that does — collection is a scheduled job run against the database, so it can
+be watched and retried without a request pipeline in front of it.
+
+Run one from outside the container, against the same volume, once a morning:
+
+```bash
+docker compose exec blueline dotnet Blueline.Cli.dll daily
+```
+
+On Linux, a crontab entry at 07:00:
+
+```bash
+0 7 * * * cd /srv/blueline && docker compose exec -T blueline dotnet Blueline.Cli.dll daily >> /var/log/blueline.log 2>&1
+```
+
+On Windows, the same thing as a scheduled task:
+
+```bash
+schtasks /create /tn Blueline /sc daily /st 07:00 /tr "docker compose -f C:\srvlueline\docker-compose.yml exec -T blueline dotnet Blueline.Cli.dll daily"
+```
+
+Each run re-reads the last few days, not just yesterday, so a stat correction the league makes
+after the fact is picked up. Running it twice does no harm — every write is an upsert.
+
+A deployment that would rather not run a scheduler can set `Ingestion__DailyJobEnabled=true` and
+have the site do it in-process instead. Seeding an empty database happens either way.
+
+**If nothing is scheduled, the data quietly stops moving.** The site keeps serving what it has and
+looks perfectly healthy, so the last-run time on the Data page — which says which arrangement is in
+force — is the thing to check when the numbers look stale.
+
+If the schedule was missed for longer than the lookback window, fill the gap:
 
 ```bash
 docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll reconcile 20252026
@@ -159,6 +192,7 @@ docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll reconcile 
 | `BLUELINE_DATA_DIR` | Already `/data` in the image; point the volume there |
 | `Blueline__UseForwardedHeaders` | Set `true` behind a proxy that terminates TLS, so the app sees the original scheme and client address. Off by default, since trusting those headers with nothing in front would let a caller spoof them |
 | `Ingestion__SeedSeasonId` | `0` disables self-seeding |
+| `Ingestion__DailyJobEnabled` | `true` moves the daily schedule into the site, instead of a job outside it |
 
 Blazor Server holds a WebSocket per visitor, so the host must allow long-lived connections. Past a
 single instance it would need sticky sessions or a Redis backplane; one instance is assumed here.
@@ -228,12 +262,12 @@ than its true .912, which is roughly the gap between an average starter and a to
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `Ingestion:DailyJobEnabled` | `true` | Run the background job at all |
+| `Ingestion:DailyJobEnabled` | `false` | Have the site schedule its own daily pass, instead of a job outside it |
 | `Ingestion:DailyRunTimeUtc` | `11:00` | When the daily pass runs (≈07:00 Eastern, after every game is scored) |
 | `Ingestion:LookbackDays` | `3` | How many days back each run re-reads, to catch stat corrections |
-| `Ingestion:RunOnStartup` | `true` | Do a pass at startup instead of waiting |
+| `Ingestion:RunOnStartup` | `true` | Do a pass at startup instead of waiting. Only applies when `DailyJobEnabled` is on |
 | `Ingestion:SeedSeasonId` | `20252026` | Season loaded when the database is empty; `0` disables |
-| `Display:DefaultGameScope` | `RegularSeason` | Games counted before the reader chooses: `RegularSeason`, `Playoffs` or `All` |
+| `Display:DefaultGameScope` | `RegularSeason` | Games counted before the reader chooses: `RegularSeason` or `Playoffs` |
 | `ConnectionStrings:Blueline` | empty | Empty means "resolve a SQLite file automatically" |
 
 ### Where the database lives
@@ -270,10 +304,10 @@ strain. Everything goes through EF Core, so moving to PostgreSQL is a provider s
 | `GET /api/ingestion/status` | What is stored and how the last run went |
 | `GET /health` | Liveness: is the database reachable |
 | `GET /health/ready` | Readiness: is there data to serve, and is ingestion keeping up |
-| `POST /api/ingestion/run?days=` | Run ingestion now |
 
-Every stat endpoint also takes `?scope=RegularSeason|Playoffs|All`; an unrecognised value falls
-back to the regular season rather than erroring, so a stale bookmark still renders.
+Every stat endpoint also takes `?scope=RegularSeason|Playoffs`; an unrecognised value falls
+back to the regular season rather than erroring, so a stale bookmark still renders — including
+`?scope=All`, which earlier builds accepted.
 
 `season` defaults to the most recent season stored. An OpenAPI document is served at
 `/openapi/v1.json` in development.

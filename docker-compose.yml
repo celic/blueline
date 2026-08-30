@@ -14,7 +14,15 @@ services:
       # Season loaded on first run against an empty database. Set to 0 to
       # disable and seed deliberately instead — see the README.
       Ingestion__SeedSeasonId: "20252026"
-      Ingestion__DailyJobEnabled: "true"
+      # The site does not collect data on a schedule. Run one from outside it,
+      # against this same volume, with either of:
+      #
+      #   docker compose exec blueline dotnet Blueline.Cli.dll daily
+      #   docker compose run --rm blueline dotnet Blueline.Cli.dll daily
+      #
+      # from a cron entry or a scheduled task, once a morning. Set this to
+      # "true" instead to have the site carry the schedule itself.
+      Ingestion__DailyJobEnabled: "false"
       # Only meaningful behind a reverse proxy that terminates TLS.
       Blueline__UseForwardedHeaders: "false"
     restart: unless-stopped
