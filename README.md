@@ -33,6 +33,9 @@ with no warnings.
   Rates are combined by weighting each appearance by the shots faced, never by averaging the
   per-game percentages.
 - **Team trends** — how a club banked standings points, scored and conceded across the year.
+- **A date or game-number x axis.** Game number compares like for like; the date axis spaces
+  games by when they were actually played, so an injury layoff or the gap between playoff rounds
+  shows up instead of being flattened away.
 - **A games filter** on every page — regular season, playoffs, or both combined. The default is
   configurable via `Display:DefaultGameScope`, and the API takes the same choice as `?scope=`.
 - **A JSON API** at `/api` serving the same data.
@@ -187,5 +190,6 @@ back to the regular season rather than erroring, so a stale bookmark still rende
 
 ## Notes
 
-Chart.js is vendored at `src/Blueline.Web/wwwroot/lib/chart.umd.js` (v4.4.7, MIT) rather than
-loaded from a CDN, so the site has no third-party runtime dependency and works offline.
+Chart.js is vendored at `src/Blueline.Web/wwwroot/lib/chart.umd.js` (v4.4.7, MIT), together with
+`chartjs-adapter-date-fns` (v3.0.0, MIT) for the date axis, rather than loaded from a CDN — so the
+site has no third-party runtime dependency and works offline.

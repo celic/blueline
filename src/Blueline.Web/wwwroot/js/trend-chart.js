@@ -15,7 +15,10 @@ export function render(canvasId, spec) {
 
     const datasets = spec.datasets.map(d => ({
         label: d.label,
-        data: d.data,
+        // A time axis needs each point to carry its own date; a category axis aligns by index.
+        data: spec.timeAxis && d.dates
+            ? d.dates.map((date, i) => ({ x: date, y: d.data[i] }))
+            : d.data,
         type: d.kind === 'bar' ? 'bar' : 'line',
         borderColor: d.color,
         backgroundColor: d.kind === 'bar' ? withAlpha(d.color, 0.45) : withAlpha(d.color, 0.12),
@@ -32,22 +35,36 @@ export function render(canvasId, spec) {
     }));
 
     const chart = new window.Chart(canvas, {
-        data: { labels: spec.labels, datasets },
+        // Labels must be withheld from a time axis. Chart.js would otherwise try to parse the
+        // game numbers "1".."82" as dates, producing a scale running from the year 1000 to 6500
+        // and collapsing every point onto the same pixel.
+        data: { labels: spec.timeAxis ? undefined : spec.labels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             animation: { duration: 300 },
             interaction: { mode: 'index', intersect: false },
             scales: {
-                x: {
-                    title: { display: true, text: spec.xLabel ?? 'Game', color: TEXT },
-                    grid: { color: GRID, drawTicks: false },
-                    ticks: {
-                        color: TEXT,
-                        maxRotation: 0,
-                        autoSkipPadding: 24,
+                x: spec.timeAxis
+                    ? {
+                        // A real time scale, not date-formatted category labels. The distinction
+                        // is the whole point: only proportional spacing shows a layoff, the gap
+                        // between playoff rounds, or the week before the postseason starts.
+                        type: 'time',
+                        time: { unit: 'month', tooltipFormat: 'MMM d, yyyy' },
+                        title: { display: true, text: spec.xLabel ?? 'Date', color: TEXT },
+                        grid: { color: GRID, drawTicks: false },
+                        ticks: { color: TEXT, maxRotation: 0, autoSkipPadding: 24 },
+                    }
+                    : {
+                        title: { display: true, text: spec.xLabel ?? 'Game', color: TEXT },
+                        grid: { color: GRID, drawTicks: false },
+                        ticks: {
+                            color: TEXT,
+                            maxRotation: 0,
+                            autoSkipPadding: 24,
+                        },
                     },
-                },
                 y: {
                     title: { display: true, text: spec.yLabel ?? '', color: TEXT },
                     grid: { color: GRID, drawTicks: false },
@@ -69,7 +86,11 @@ export function render(canvasId, spec) {
                     padding: 10,
                     callbacks: {
                         // The opponent matters more than the game number when reading a spike.
-                        title: items => spec.subtitles?.[items[0].dataIndex] ?? items[0].label,
+                        // On a time axis the series no longer share an index, so fall back to
+                        // Chart.js's own formatted date rather than mislabelling a point.
+                        title: items => spec.timeAxis
+                            ? items[0].label
+                            : (spec.subtitles?.[items[0].dataIndex] ?? items[0].label),
                     },
                 },
             },

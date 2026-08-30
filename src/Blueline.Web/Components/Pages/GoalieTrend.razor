@@ -49,6 +49,14 @@ else
         <ScopePicker Scope="_scope" ScopeChanged="OnScopeChanged" />
 
         <div class="field">
+            <label>X axis</label>
+            <div class="segmented">
+                <button class="@(!_timeAxis ? "on" : "")" @onclick="() => SetAxis(false)">Game</button>
+                <button class="@(_timeAxis ? "on" : "")" @onclick="() => SetAxis(true)">Date</button>
+            </div>
+        </div>
+
+        <div class="field">
             <label>View</label>
             <div class="segmented">
                 <button class="@(_cumulative ? "on" : "")" @onclick="() => SetView(true)">@_cumulativeLabel</button>
@@ -159,6 +167,7 @@ else
     private int _window = 10;
     private bool _cumulative = true;
     private GameScope _scope;
+    private bool _timeAxis;
     private string _chartKey = "";
 
     private bool _isRate => StatDefinition.FindGoalie(_stat)?.IsRate ?? false;
@@ -243,25 +252,22 @@ else
 
             if (_cumulative)
             {
-                datasets.Add(new ChartDataset(
-                    series.SubjectName,
-                    Pad(series.Points.Select(p => (double?)p.Cumulative), length),
-                    color,
+                datasets.Add(TrendDatasets.From(
+                    series.SubjectName, series.Points, p => p.Cumulative, color, _timeAxis, length,
                     // Filling under a rate line implies area, which means nothing here.
-                    Fill: all.Count == 1 && !_isRate));
+                    fill: all.Count == 1 && !_isRate));
             }
             else
             {
                 if (all.Count == 1)
                 {
-                    datasets.Add(new ChartDataset(
-                        "Per game", Pad(series.Points.Select(p => (double?)p.Value), length), "#475569", Kind: "bar"));
+                    datasets.Add(TrendDatasets.From(
+                        "Per game", series.Points, p => p.Value, "#475569", _timeAxis, length, kind: "bar"));
                 }
 
-                datasets.Add(new ChartDataset(
+                datasets.Add(TrendDatasets.From(
                     all.Count == 1 ? $"{_window}-game average" : series.SubjectName,
-                    Pad(series.Points.Select(p => p.RollingAverage), length),
-                    color));
+                    series.Points, p => p.RollingAverage, color, _timeAxis, length));
             }
         }
 
@@ -272,15 +278,16 @@ else
         _spec = new ChartSpec(
             labels,
             datasets,
-            XLabel: "Appearance",
+            XLabel: _timeAxis ? "Date" : "Appearance",
             YLabel: _cumulative && !_isRate ? $"Cumulative {_primary.StatLabel.ToLowerInvariant()}" : _primary.StatLabel,
             // Save percentage lives between about .850 and 1.000; anchoring at zero would flatten
             // every line into an indistinguishable band at the top of the chart.
             BeginAtZero: !_isRate,
             Precise: _isRate || !_cumulative,
-            Subtitles: subtitles);
+            Subtitles: subtitles,
+            TimeAxis: _timeAxis);
 
-        _chartKey = $"{PlayerId}-{_seasonId}-{_scope}-{_stat}-{_window}-{_cumulative}-{_comparisons.Count}";
+        _chartKey = $"{PlayerId}-{_seasonId}-{_scope}-{_stat}-{_window}-{_cumulative}-{_timeAxis}-{_comparisons.Count}";
     }
 
     private static List<double?> Pad(IEnumerable<double?> values, int length)
@@ -323,6 +330,13 @@ else
         _cumulative = cumulative;
         BuildSpec();
     }
+
+    private void SetAxis(bool timeAxis)
+    {
+        _timeAxis = timeAxis;
+        BuildSpec();
+    }
+
 
     private async Task AddComparisonAsync(int playerId)
     {

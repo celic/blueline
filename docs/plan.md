@@ -88,45 +88,33 @@ cannot be charted against their own earlier year. "McDavid at 24 against McDavid
 genuinely different question — each series needs to carry its own season, and the x axis has to
 decide whether it aligns by game number or by age. Worth its own item if wanted.
 
-### 1.4 Offer a date x axis as well as game number — `todo`
+### 1.4 Offer a date x axis as well as game number — `done`
 
-Every chart plots game number on the x axis, evenly spaced. `TrendPoint.Date` is already
-computed, stored and serialised to the browser, so this is presentation only — no query or
-schema change.
+Every trend page now has a Game / Date toggle. Both axes are kept, because they answer different
+questions: game number for per-game pace and for comparing players whose games played differ,
+date for when someone was hot and what they missed.
 
-Game number hides every gap in the calendar:
+It is a real time scale, not date-formatted category labels — the distinction the item warned
+about. Verified numerically rather than by eye: on Draisaitl's season a 21-day absence renders 90
+pixels wide against 9 pixels for an ordinary two-day gap, a ratio matching the elapsed time. On
+the game-number axis that layoff was invisible, the line climbing as though he had played
+throughout.
 
-- **A player who misses six weeks injured draws an unbroken line.** Game 40 sits right beside
-  game 41 as though nothing happened. For a site whose whole premise is trends over time, this
-  is the most distorting case, and it has nothing to do with the playoffs.
-- **Playoff series vary in length and the rounds have long gaps between them**, so a run reads
-  as evenly paced when it was not.
-- **In the combined scope the week between the regular season and the playoffs vanishes**, and
-  the two stretches run together as though continuous.
+- `chartjs-adapter-date-fns` is vendored beside `chart.umd.js`, so there is still no CDN
+  dependency at runtime.
+- `TrendDatasets.From` builds whichever shape the axis needs: padded and index-aligned for the
+  category axis, or carrying its own dates and unpadded for the time axis, where padding would
+  invent points with no date and where the gaps padding exists to hide are the entire point.
 
-Keep both axes rather than replacing one. They answer different questions: game number is the
-honest axis for per-game pace and for comparing players whose games played differ, while a date
-axis answers "when was he hot" and shows layoffs for what they are.
+**A bug found while verifying, worth recording.** Passing the category labels alongside a time
+scale made Chart.js parse the game numbers "1".."82" as dates, producing an axis running from the
+year 1000 to 6500 and collapsing every point onto one pixel. The labels are now withheld when the
+time axis is in use. It would have shipped looking broken rather than subtly wrong, but only
+because the spacing was measured — a glance at the chart shape would not have caught the cause.
 
-**The trap worth naming**, because falling into it looks like success: simply formatting the
-existing category-axis labels as dates is *not* this feature. The spacing stays uniform, so every
-gap above remains invisible — the chart would read as fixed while still misleading. It needs a
-real time scale with proportional spacing.
-
-Implementation notes:
-
-- Chart.js needs a date adapter for its time scale (`chartjs-adapter-date-fns` or the Luxon
-  equivalent), which means vendoring a second library beside `chart.umd.js`. That is the bulk of
-  the cost and the reason this has not been done in passing.
-- The data shape changes for this mode: series become `{x, y}` points carrying their own dates
-  rather than sharing one label index. `ChartSpec.Labels` and the `Pad` helpers in
-  `PlayerTrend.razor` and `GoalieTrend.razor` exist only to align comparison series by game
-  number, and are unnecessary once each series carries its own x values.
-- Decide what the rolling window means here. It stays "N games", so over a stretch containing a
-  layoff a 10-game average spans a much longer calendar period than its width on the axis
-  suggests. Either accept that, or offer a days-based window alongside it.
-- The control belongs next to the existing View toggle on the three trend pages. No API change
-  is needed — points already carry `date`, so external consumers can plot by date today.
+Still open: the rolling window remains "N games", so across a layoff a 10-game average spans far
+more calendar time than its width on the date axis suggests. A days-based window would be a
+separate decision.
 
 ---
 
