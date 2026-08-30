@@ -247,20 +247,25 @@ committing.
 
 ## 4. Data quality and coverage
 
-### 4.1 Fix the 30 abbreviated player names — `todo`
+### 4.1 Fix the abbreviated player names — `done`
 
-30 of 1,063 players still read as `D. Tarasov`. `EnrichPlayerNamesAsync` reads each club's
-end-of-season roster, which misses anyone who appeared briefly and was gone by April. Their
-stats are correct; only the display name is short.
+Resolved. Anyone the club rosters cannot account for is now looked up individually through
+`/v1/player/{id}/landing`, one request each, and only for players who actually need it.
 
-- Fall back to `/v1/player/{id}/landing` for players still matching `NeedsRealName` after the
-  roster pass. That is one request per unnamed player — 30, not 1,063.
+**The count was wrong, and the reason mattered.** Of the 30 flagged, only 25 were genuinely
+abbreviated. The other five — J.T. Miller, T.J. Tynan, A.J. Greer, J.J. Moser, J.T. Compher —
+have first names that really are initialised. `NeedsRealName` matched anything ending in a
+period, so it swept them up.
 
-This costs more than a cosmetic blemish, which was not obvious when the item was written. The
-enrichment pass is skipped only when *every* player has a real name, so these 30 — who never
-will, from the roster endpoint — keep the guard permanently open. Every daily run therefore
-re-fetches all 32 club rosters for both game types, around 64 requests a night, to resolve
-nothing. Fixing the names also fixes that.
+That was not a miscount but the engine of the recurring cost. The league's own player endpoint
+returns `"J.T."` for Miller, because that *is* his name, so those five could never be satisfied
+by any lookup. While one player remained outstanding the enrichment guard stayed open, and every
+run re-walked all 32 club rosters to resolve nothing. Adding the individual lookup alone would
+not have closed it. The check now matches a single initial only — one letter and a period.
+
+Verified against the live database: 25 of 25 genuinely abbreviated names resolved
+(`C. Petersen` is now `Cal Petersen`), the five initialised names were correctly left alone, and
+a second run performed no enrichment at all — the nightly roster walk is gone.
 
 ### 4.2 Load more seasons — `todo`
 

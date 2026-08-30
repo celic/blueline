@@ -336,9 +336,29 @@ public class IngestionTests
     }
 
     [Test]
-    public async Task A_player_missing_from_the_roster_keeps_their_abbreviated_name()
+    public async Task A_player_missing_from_every_roster_is_looked_up_individually()
     {
         // Someone who played once and was gone before the end-of-season roster was published.
+        var stub = TwoGamesSharingATeam()
+            .Add("club-stats/HME/20252026/2", StubNhlApi.ClubStats((101, "Hometown", "Forward", "L")))
+            .Add("player/100/landing", StubNhlApi.PlayerLanding(100, "Awayville", "Forward"));
+
+        await BuildService(stub).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        var resolved = await _db.Players.SingleAsync(p => p.Id == 100);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resolved.FullName, Is.EqualTo("Awayville Forward"));
+            Assert.That(resolved.HeadshotUrl, Is.EqualTo("https://example.test/landing/100.png"));
+            Assert.That(NhlIngestionService.NeedsRealName(resolved), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task A_player_the_individual_lookup_cannot_resolve_keeps_correct_stats()
+    {
+        // Nothing registered for the lookup, so it 404s.
         var stub = TwoGamesSharingATeam()
             .Add("club-stats/HME/20252026/2", StubNhlApi.ClubStats((101, "Hometown", "Forward", "L")));
 
@@ -346,11 +366,54 @@ public class IngestionTests
 
         var unresolved = await _db.Players.SingleAsync(p => p.Id == 100);
 
-        Assert.Multiple(() =>
+        Assert.Multiple(async () =>
         {
-            Assert.That(unresolved.LastName, Is.EqualTo("Forward"), "their stats are still correct");
-            Assert.That(NhlIngestionService.NeedsRealName(unresolved), Is.True, "only the display name is short");
+            Assert.That(unresolved.LastName, Is.EqualTo("Forward"), "their stats and surname are still correct");
+            Assert.That(await _db.SkaterGameStats.CountAsync(s => s.PlayerId == 100), Is.EqualTo(2),
+                "a missing display name must not cost the player their stat lines");
         });
+    }
+
+    [Test]
+    public async Task Once_every_name_is_resolved_the_roster_walk_stops_running()
+    {
+        // The recurring cost this fix targets: while any player is outstanding, every run
+        // re-walks all 32 club rosters, even when it can resolve nothing.
+        var stub = TwoGamesSharingATeam()
+            .Add("club-stats/HME/20252026/2", StubNhlApi.ClubStats(
+                (101, "Hometown", "Forward", "L"), (201, "Hometown", "Goalie", "G")))
+            .Add("club-stats/AWY/20252026/2", StubNhlApi.ClubStats((200, "Awayville", "Goalie", "G")))
+            .Add("player/100/landing", StubNhlApi.PlayerLanding(100, "Awayville", "Forward"));
+
+        var service = BuildService(stub);
+        await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        var rosterCallsAfterFirst = stub.RequestedPaths.Count(p => p.StartsWith("club-stats"));
+        await service.IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+        var rosterCallsAfterSecond = stub.RequestedPaths.Count(p => p.StartsWith("club-stats"));
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(await _db.Players.CountAsync(p => p.FirstName == "" || p.FirstName.EndsWith(".")), Is.Zero,
+                "precondition: nothing left outstanding");
+            Assert.That(rosterCallsAfterSecond, Is.EqualTo(rosterCallsAfterFirst),
+                "a second run must not re-walk the rosters");
+        });
+    }
+
+    [Test]
+    public async Task An_individual_lookup_is_only_made_for_players_who_need_one()
+    {
+        var stub = TwoGamesSharingATeam()
+            .Add("club-stats/HME/20252026/2", StubNhlApi.ClubStats(
+                (101, "Hometown", "Forward", "L"), (201, "Hometown", "Goalie", "G")))
+            .Add("club-stats/AWY/20252026/2", StubNhlApi.ClubStats(
+                (100, "Awayville", "Forward", "C"), (200, "Awayville", "Goalie", "G")));
+
+        await BuildService(stub).IngestRecentAsync(new DateOnly(2026, 1, 15), lookbackDays: 0);
+
+        Assert.That(stub.RequestedPaths.Where(p => p.StartsWith("player/")), Is.Empty,
+            "the rosters covered everyone, so no per-player request is warranted");
     }
 
     [Test]

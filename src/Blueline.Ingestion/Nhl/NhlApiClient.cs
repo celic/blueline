@@ -72,6 +72,13 @@ public class NhlApiClient(HttpClient http, ILogger<NhlApiClient> logger)
         GetAsync<BoxscoreResponse>($"gamecenter/{gameId}/boxscore", ct);
 
     /// <summary>
+    /// One player's own record. Authoritative for their name, and the only source for anyone
+    /// who never appears on an end-of-season club roster.
+    /// </summary>
+    public Task<PlayerLandingResponse?> GetPlayerLandingAsync(int playerId, CancellationToken ct) =>
+        GetAsync<PlayerLandingResponse>($"player/{playerId}/landing", ct);
+
+    /// <summary>
     /// Season totals for a club. Ingestion uses this only to recover full first/last names and
     /// headshots, which the boxscore abbreviates to "D. Tarasov".
     /// </summary>

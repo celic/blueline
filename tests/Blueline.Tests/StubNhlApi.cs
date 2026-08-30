@@ -85,6 +85,17 @@ public class StubNhlApi : HttpMessageHandler
         }
         """;
 
+    /// <summary>The shape of /v1/player/{playerId}/landing.</summary>
+    public static string PlayerLanding(int playerId, string first, string last, string position = "C") => $$"""
+        {
+          "playerId": {{playerId}},
+          "firstName": { "default": "{{first}}" },
+          "lastName": { "default": "{{last}}" },
+          "position": "{{position}}",
+          "headshot": "https://example.test/landing/{{playerId}}.png"
+        }
+        """;
+
     /// <summary>The shape of /v1/standings/{date}, which is only read for team abbreviations.</summary>
     public static string Standings(params string[] abbrevs)
     {

@@ -458,7 +458,19 @@ public class NhlIngestionService(
     /// name is an initial such as "D." rather than "Daniil".
     /// </summary>
     internal static bool NeedsRealName(Player player) =>
-        string.IsNullOrWhiteSpace(player.FirstName) || player.FirstName.EndsWith('.');
+        string.IsNullOrWhiteSpace(player.FirstName) || IsSingleInitial(player.FirstName);
+
+    /// <summary>
+    /// A box score placeholder is one letter and a period — "D." for Daniil.
+    ///
+    /// Matching on "ends with a period" instead would sweep up players whose real first name is
+    /// initialised: J.T. Miller, T.J. Tynan, A.J. Greer. That matters beyond a miscount. The
+    /// league's own player endpoint returns "J.T." for Miller, because that *is* his name, so
+    /// such a player could never be satisfied — they would be re-checked on every run forever,
+    /// keeping the whole enrichment pass alive to resolve nothing.
+    /// </summary>
+    private static bool IsSingleInitial(string firstName) =>
+        firstName.Length == 2 && char.IsLetter(firstName[0]) && firstName[1] == '.';
 
     internal static (string First, string Last) SplitBoxscoreName(string? name)
     {
@@ -512,8 +524,50 @@ public class NhlIngestionService(
             }
         }
 
+        updated += await ResolveRemainingNamesAsync(players.Values.Where(NeedsRealName).ToList(), ct);
+
         await db.SaveChangesAsync(ct);
         logger.LogInformation("Resolved full names for {Count} players.", updated);
+    }
+
+    /// <summary>
+    /// Looks up anyone the club rosters could not account for, one request each.
+    ///
+    /// The roster pass reads end-of-season squads, so it misses players who appeared briefly and
+    /// were gone by April — a call-up, an emergency backup, a deadline departure. There are only
+    /// ever a handful, and leaving them unresolved is not merely cosmetic: while any player still
+    /// needs a name, the enrichment guard stays open and every run re-walks all 32 club rosters.
+    /// </summary>
+    private async Task<int> ResolveRemainingNamesAsync(IReadOnlyList<Player> unresolved, CancellationToken ct)
+    {
+        if (unresolved.Count == 0) return 0;
+
+        logger.LogInformation(
+            "{Count} player(s) were not on any club roster; looking them up individually.", unresolved.Count);
+
+        var resolved = 0;
+
+        foreach (var player in unresolved)
+        {
+            var landing = await api.GetPlayerLandingAsync(player.Id, ct);
+
+            var first = landing?.FirstName?.Default;
+            var last = landing?.LastName?.Default;
+            if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(last))
+            {
+                // Leave them as they are. Their stats are correct; only the display name is short.
+                logger.LogWarning("Could not resolve a name for player {PlayerId}.", player.Id);
+                continue;
+            }
+
+            player.FirstName = first;
+            player.LastName = last;
+            if (!string.IsNullOrWhiteSpace(landing!.Headshot)) player.HeadshotUrl = landing.Headshot;
+            if (!string.IsNullOrWhiteSpace(landing.Position)) player.Position = landing.Position;
+            resolved++;
+        }
+
+        return resolved;
     }
 
     private async Task<IngestionRun> StartRunAsync(string kind, int? seasonId, CancellationToken ct)

@@ -81,6 +81,14 @@ public record BoxGoalie(
     string? Toi,
     bool Starter);
 
+// --- /v1/player/{playerId}/landing ---
+public record PlayerLandingResponse(
+    int PlayerId,
+    LocalizedText? FirstName,
+    LocalizedText? LastName,
+    string? Position,
+    string? Headshot);
+
 // --- /v1/club-stats/{team}/{season}/{gameType} ---
 public record ClubStatsResponse(List<ClubStatsPlayer> Skaters, List<ClubStatsPlayer> Goalies);
 public record ClubStatsPlayer(

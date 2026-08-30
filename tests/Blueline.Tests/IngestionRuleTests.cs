@@ -48,6 +48,18 @@ public class IngestionRuleTests
     public void A_name_still_abbreviated_to_an_initial_needs_resolving(string firstName, bool expected) =>
         Assert.That(NhlIngestionService.NeedsRealName(new Player { FirstName = firstName }), Is.EqualTo(expected));
 
+    [TestCase("J.T.")]
+    [TestCase("T.J.")]
+    [TestCase("A.J.")]
+    [TestCase("J.J.")]
+    public void An_initialised_real_name_is_not_mistaken_for_a_placeholder(string firstName)
+    {
+        // J.T. Miller's name really is "J.T." — the league's own player endpoint returns it.
+        // Flagging these would leave them permanently unsatisfiable, and while any player is
+        // outstanding the enrichment pass re-walks all 32 club rosters on every run.
+        Assert.That(NhlIngestionService.NeedsRealName(new Player { FirstName = firstName }), Is.False);
+    }
+
     // --- box score name splitting ---
 
     [Test]

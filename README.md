@@ -18,9 +18,6 @@ with no warnings.
 
 **Known gaps**, in rough order of how much they'd be missed:
 
-- **30 of 1,063 players still show an abbreviated name** such as `D. Tarasov`. Name enrichment
-  reads each club's end-of-season roster, which misses players who appeared briefly and were gone
-  by season's end. Their stats are correct; only the display name is short.
 - **Only one season is loaded.** The schema and UI are multi-season already — a season picker is
   on every page — so this is just a matter of running `backfill` for another year.
 - **The daily job has not been observed firing on a real game day.** It was exercised against past
@@ -103,7 +100,8 @@ A season is loaded by walking all 32 club schedules to discover game ids, then r
 score per game. The box score is the richest per-game source — goals, assists, shots, hits,
 blocks, giveaways, takeaways and time on ice for every skater, plus goalie lines. Box scores
 abbreviate names to `D. Tarasov`, so a second pass over each club's season roster fills in real
-names and headshots.
+names and headshots. Anyone the rosters miss — a call-up, an emergency backup, a deadline
+departure — is then looked up individually, one request per player.
 
 Every write is an upsert keyed on the league's own ids, so backfills, daily runs and manual
 re-runs all converge on the same rows.
