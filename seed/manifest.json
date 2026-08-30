@@ -6,30 +6,31 @@
     "replaced wholesale each time they are regenerated.",
     "",
     "scripts/fetch-seasons.ps1 reads this file, downloads each archive beside it, and verifies the",
-    "checksum. scripts/publish-seasons.ps1 exports the seasons and updates this file.",
+    "checksum. scripts/publish-seasons.ps1 exports the seasons, records the checksums here, and can",
+    "upload them to the release named below.",
     "",
-    "An empty sha256 means the archive has not been published yet; the fetch script treats that as",
-    "not-yet-available rather than as a file to trust unverified.",
+    "Checksums change whenever an archive is regenerated, because each export records the time it",
+    "was taken. Re-run publish-seasons.ps1 rather than editing them by hand.",
     "",
-    "An empty baseUrl means there is nowhere to fetch from yet, so the fetch script explains how to",
-    "build the archives locally instead."
+    "baseUrl resolves only once that release exists; until then the fetch script reports each",
+    "archive as unavailable and explains how to build them locally instead."
   ],
   "release": {
     "tag": "seasons-v1",
-    "baseUrl": ""
+    "baseUrl": "https://github.com/celic/blueline/releases/download/seasons-v1"
   },
   "seasons": [
     {
       "seasonId": 20252026,
       "label": "2025-26",
       "file": "20252026.blueline.gz",
-      "sha256": "b5c23ae3fa54561b5c97051f90d96804ca2d2e46d8122d29eba190defe9f665a"
+      "sha256": "e9e3f59604f8f4ae68eabc2034704101743b669ddef52850d3a179357d3380df"
     },
     {
       "seasonId": 20242025,
       "label": "2024-25",
       "file": "20242025.blueline.gz",
-      "sha256": "bc2494f950b19b6fb19224ceb4445176c2ba770f9de3ccf529b104f2845fca8a"
+      "sha256": "8c587d895ca8d9ffbf7b247902a4bc6296b8fadd100dfa97d070871e72dae5d0"
     }
   ]
 }

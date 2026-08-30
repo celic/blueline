@@ -27,7 +27,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$repositoryRoot = Join-Path $PSScriptRoot '..' | Resolve-Path
+$repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $seedDirectory = Join-Path $repositoryRoot 'seed'
 $manifestPath = Join-Path $seedDirectory 'manifest.json'
 
@@ -38,8 +38,8 @@ foreach ($season in $manifest.seasons) {
     $target = Join-Path $seedDirectory $season.file
 
     Write-Host "Exporting $($season.label)..."
-    dotnet run --project (Join-Path $repositoryRoot 'src/Blueline.Cli') -- `
-        export $season.seasonId $target
+    $cliProject = Join-Path $repositoryRoot 'src/Blueline.Cli'
+    dotnet run --project $cliProject -- export $season.seasonId $target
     if ($LASTEXITCODE -ne 0) { throw "Export failed for $($season.label). Has it been backfilled?" }
 
     $season.sha256 = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -61,7 +61,8 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 
 $assets = $manifest.seasons | ForEach-Object { Join-Path $seedDirectory $_.file }
 
-if (gh release view $effectiveTag 2>$null) {
+gh release view $effectiveTag | Out-Null
+if ($LASTEXITCODE -eq 0) {
     Write-Host "Updating release $effectiveTag..."
     gh release upload $effectiveTag @assets --clobber
 }

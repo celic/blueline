@@ -109,7 +109,7 @@ would fill a code repository's history with binaries. `seed/manifest.json` lists
 fetch them with:
 
 ```bash
-pwsh ./scripts/fetch-seasons.ps1
+pwsh ./scripts/fetch-seasons.ps1     # or: powershell -File ./scripts/fetch-seasons.ps1
 ```
 
 Then build the image, and they are baked in. With no archives present the image still builds and
