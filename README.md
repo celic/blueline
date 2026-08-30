@@ -255,6 +255,28 @@ one makes the opening weeks look far more volatile than they were. For a days wi
 property of the calendar: the season has to reach back the whole period, however few games fell in
 between.
 
+### Streaks
+
+`/api/streaks` answers a different question from `/api/leaders`: not who is best, but who is
+furthest above their own usual rate over a trailing window. Ranking by raw total would put the same
+handful of stars on the board for weeks, and those already have a leaderboard.
+
+Lift is a multiple for a counting stat — 3.6 means three and a half times the player's season rate
+— and a difference for a rate, where a goalie at .965 against a .907 baseline reads as +.058. The
+baseline deliberately includes the window: excluding it would leave a player whose only production
+came in the window with nothing to divide by.
+
+Departure alone is not enough, because one good night against a season of nothing is an enormous
+multiple of nothing. Each board therefore applies a floor relative to its own leader — 40% of the
+best run in that window — rather than a threshold invented per stat. Goalies get the same treatment
+on workload, which is what stops a backup's quiet .1000 over eighteen shots topping the board. A
+days window also needs at least three appearances behind it, and any subject needs ten games of
+season before they are said to have a rate at all.
+
+Windows end on the newest game stored rather than on today, so the boards still answer in the
+off-season — they describe the closing weeks of the season played, and anything showing them has to
+say so.
+
 Standings points are a regular-season construct. Playoff games award none — not for a win, and
 not for an overtime loss, since the playoffs have no loser point. A combined view therefore shows
 a club's real standings total rather than an inflated one, and the pages hide the points columns
@@ -311,6 +333,8 @@ strain. Everything goes through EF Core, so moving to PostgreSQL is a provider s
 | `GET /api/teams?season=` | Standings |
 | `GET /api/teams/{id}/trend?season=&stat=&window=` | A team's pace |
 | `GET /api/leaders?season=&stat=&take=` | Season leaders |
+| `GET /api/streaks?season=&stat=&window=&take=` | Skaters furthest above their own season rate |
+| `GET /api/streaks/goalies?season=&window=&take=` | Goalies furthest above their own save percentage |
 | `GET /api/ingestion/status` | What is stored and how the last run went |
 | `GET /health` | Liveness: is the database reachable |
 | `GET /health/ready` | Readiness: is there data to serve, and is ingestion keeping up |

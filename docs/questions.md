@@ -37,6 +37,14 @@ is to measure a season's cached leaders rather than reason about them. Two thing
 indefinite retention, and a separate short expiry for the in-progress season, invalidated when
 ingestion writes.
 
+**First measurements, from building the streak boards (plan.md 6.2).** Warm, against the real
+two-season database: a season leaderboard is 40 ms, a streak board 43-92 ms depending on the window,
+a goalie board 10 ms. A six-panel dashboard is therefore 300-400 ms of query time, since panels
+share a scoped `DbContext` and cannot run concurrently. That is the number worth deciding against —
+not enormous, but it is paid on the page every visitor lands on first, and every panel of it is
+recomputing figures that only change when a game is ingested. What is still unmeasured is the size
+of the cached results, which is the half of the question you actually asked.
+
 ---
 
 ## Settled

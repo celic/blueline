@@ -600,24 +600,70 @@ the old bookmark still resolving. 26 UI tests pass.
 Verified in a browser at both routes: the landing page renders its four cards and the season line,
 and `/leaders` still lists McDavid at 138 points.
 
-### 6.2 Compute streaks — `todo`
+### 6.2 Compute streaks — `done`
 
-The query work, and the part with real substance in it. Depends on 1.6, since "the past two weeks"
-is a days-based window and nothing today can express one.
+`StreaksQueryService` answers "who is hot", against the rate each subject normally produces.
+`GET /api/streaks` for skaters, `GET /api/streaks/goalies` for save percentage, both taking a
+window in games or days.
 
-- **A streak here is a leaderboard over a trailing window**, not a consecutive-games run. "Most
-  points in the last 10 games" ranks every player over their last 10; "longest point streak" — a
-  genuine consecutive run — is a different computation and a natural second wave.
-- **Windows come in both kinds.** Games for skater volume, days for anything where availability
-  varies, which is most of what makes a goalie interesting.
-- **Qualification matters more here than on a season leaderboard.** Over 14 days a goalie with one
-  start can post a .960 and top the board, which is noise presented as a finding. 1.1 already
-  established the pattern with `RateQualificationMinutes`, and a window-scaled version of it is what
-  keeps the panel honest.
-- **Cost is the open risk.** Season leaders aggregate ~50,000 rows once; a dashboard of six panels
-  aggregates repeatedly, on the page every visitor lands on first. Worth measuring before building
-  the UI on top of it, and it is what turns the caching bullet in group 5 from polish into
-  something load-bearing.
+**It disagrees with the leaderboard, which is the entire point.** On the live 2025-26 season the
+ten-game points board reads Soderblom (8 points, 3.6× his rate), Samoskevich, Hartman — not McDavid,
+who sits at a lift of about 1.0 because he is producing exactly what he always does. That is what
+question 11 asked for, and the tests pin it with two players whose ten-game totals are identical
+and whose lifts are not.
+
+The guards matter more than the ranking, and they are relative rather than a table of per-stat
+constants:
+
+- **A floor at 40% of the board's own leader.** One assist against a leader's ten is an enormous
+  multiple of a fringe player's baseline and is not a streak. Expressed against the best run in that
+  window, this needs no number invented per stat or per window size.
+- **The same idea on goalie workload**, which is what keeps a backup's .1000 over eighteen shots off
+  the board — the specific failure that makes a rate leaderboard useless over a short window.
+- **Ten games of season before a subject has a baseline at all**, and three appearances inside a
+  days window before it is called form.
+- **The baseline includes the window.** Excluding it would leave a player whose only production came
+  in the window dividing by zero; including it also bounds the lift naturally.
+
+Windows end on the **newest game stored**, not today, so the boards keep answering in the
+off-season. What they then describe is the closing weeks of the last season played, which is 6.4's
+problem to say out loud.
+
+**Cost was the open risk, so it was measured rather than argued about.** Warm, against the real
+two-season database:
+
+| Board | Before | After |
+| --- | --- | --- |
+| Points, 10-game window | 250-390 ms | **64-92 ms** |
+| Goals, 20-game window | 265-394 ms | **62-73 ms** |
+| Hits, 14-day window | 58-87 ms | **43-52 ms** |
+| Goalie save percentage, 14 days | 8-10 ms | **9-11 ms** |
+| `/api/leaders`, for comparison | 40 ms | 40 ms |
+
+Two changes account for the difference, and both were found by measuring:
+
+- **`AsNoTracking` on the window fetch**, worth roughly 2.5× on its own. The projection carried the
+  whole entity, so the change tracker was taking an identity snapshot of every row — and a six-week
+  window across the league is tens of thousands of rows, not the eighty a single player's trend
+  pulls.
+- **Selecting three columns instead of the entity.** `SkaterValuesSince` picks the stat in SQL,
+  which needs the same eleven-branch switch the leaderboards use. A plain `Select` into a named type
+  translates fine; it is only `GroupBy` that will not.
+
+A six-panel dashboard is therefore roughly 300-400 ms of query time if the panels run in sequence,
+which they must — they share a scoped `DbContext`. That is the number question 7 should be answered
+against, and it is what makes caching load-bearing rather than polish for 6.3.
+
+**A bug found while verifying against real data.** Every goalie on the board had a blank club.
+`GetPrimaryTeamAbbrevsAsync` counts *skater* rows, of which a goalie has none, so it returned
+nothing and the board rendered five nameless clubs. There was already a goalie equivalent; the
+board now picks the right one. The unit tests had not caught it because they assert on ids, and it
+took a board printed from the live database to see it.
+
+`SkaterTotalsAsync` was extracted from `GetLeadersAsync` so the season baseline is computed once
+rather than copied. Projecting the grouped rows into a named type inside SQL was tried first and
+does not translate — the tests caught it — so the rows are materialised and named in memory, which
+costs nothing against the aggregation that produced them.
 
 ### 6.3 Build the dashboard — `todo`
 

@@ -181,7 +181,7 @@ public class StatsQueryService(BluelineDbContext db)
     /// A goalie can be traded mid-season, so label them by the club they played most for.
     /// Mirrors <see cref="GetPrimaryTeamAbbrevsAsync"/>, which works on skater rows.
     /// </summary>
-    private async Task<Dictionary<int, string>> GetGoaliePrimaryTeamsAsync(
+    internal async Task<Dictionary<int, string>> GetGoaliePrimaryTeamsAsync(
         int seasonId, List<int> playerIds, GameScope scope, CancellationToken ct)
     {
         var counts = await GoalieStats(seasonId, scope)
@@ -389,14 +389,53 @@ public class StatsQueryService(BluelineDbContext db)
         var definition = StatDefinition.FindSkater(stat);
         if (definition is null) return [];
 
-        // Season-wide, so the sum has to happen in SQL.
-        //
-        // Every branch below projects to the same anonymous type, so they unify into one query
-        // type. The repetition is deliberate and cannot be factored into a helper: EF Core will
-        // not translate a GroupBy whose key or aggregate is projected into a named type, and an
-        // anonymous type cannot cross a method boundary.
+        var totals = (await SkaterTotalsAsync(seasonId, definition.Key, scope, ct))
+            .OrderByDescending(t => t.Total)
+            // Ties are broken by id so that two identical requests rank players identically;
+            // without it the database is free to return tied rows in any order, which also
+            // decides arbitrarily who makes the cut at the Take boundary.
+            .ThenBy(t => t.PlayerId)
+            .Take(take)
+            .ToList();
+
+        var ids = totals.Select(t => t.PlayerId).ToList();
+        var players = await db.Players.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var teams = await GetPrimaryTeamAbbrevsAsync(seasonId, ids, scope, ct);
+
+        return totals
+            .Where(t => players.ContainsKey(t.PlayerId))
+            .Select((t, i) =>
+            {
+                var p = players[t.PlayerId];
+                return new LeaderRow(
+                    i + 1, p.Id, p.FullName, p.Position,
+                    teams.GetValueOrDefault(p.Id), p.HeadshotUrl, t.GamesPlayed,
+                    // Time on ice is stored in seconds but only ever read as minutes.
+                    definition.Key == "toi" ? Math.Round(t.Total / 60d, 1) : t.Total);
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Per-player totals for one skater stat across a season. The sum happens in SQL; the ordering
+    /// does not.
+    ///
+    /// Every branch below projects to the same anonymous type, so they unify into one query type.
+    /// The repetition is deliberate and cannot be factored into a helper: EF Core will not
+    /// translate a GroupBy whose key or aggregate is projected into a named type, and an anonymous
+    /// type cannot cross a method boundary. Projecting to a named type *after* the grouping fails
+    /// the same way — it was tried, and the tests caught it — so the rows are materialised here
+    /// and named in memory instead. That is what lets a season baseline be computed once and
+    /// shared rather than copied.
+    ///
+    /// A season holds roughly a thousand skaters, so returning every row costs little against the
+    /// aggregation that produced them, which has to touch every game either way.
+    /// </summary>
+    internal async Task<List<PlayerStatTotal>> SkaterTotalsAsync(
+        int seasonId, string statKey, GameScope scope, CancellationToken ct = default)
+    {
         var stats = SkaterStats(seasonId, scope);
-        var aggregated = definition.Key switch
+        var aggregated = statKey switch
         {
             "goals" => stats.GroupBy(s => s.PlayerId)
                 .Select(g => new { PlayerId = g.Key, GamesPlayed = g.Count(), Total = g.Sum(x => x.Goals) }),
@@ -422,31 +461,8 @@ public class StatsQueryService(BluelineDbContext db)
                 .Select(g => new { PlayerId = g.Key, GamesPlayed = g.Count(), Total = g.Sum(x => x.Points) }),
         };
 
-        var totals = await aggregated
-            .OrderByDescending(t => t.Total)
-            // Ties are broken by id so that two identical requests rank players identically;
-            // without it the database is free to return tied rows in any order, which also
-            // decides arbitrarily who makes the cut at the Take boundary.
-            .ThenBy(t => t.PlayerId)
-            .Take(take)
-            .ToListAsync(ct);
-
-        var ids = totals.Select(t => t.PlayerId).ToList();
-        var players = await db.Players.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-        var teams = await GetPrimaryTeamAbbrevsAsync(seasonId, ids, scope, ct);
-
-        return totals
-            .Where(t => players.ContainsKey(t.PlayerId))
-            .Select((t, i) =>
-            {
-                var p = players[t.PlayerId];
-                return new LeaderRow(
-                    i + 1, p.Id, p.FullName, p.Position,
-                    teams.GetValueOrDefault(p.Id), p.HeadshotUrl, t.GamesPlayed,
-                    // Time on ice is stored in seconds but only ever read as minutes.
-                    definition.Key == "toi" ? Math.Round(t.Total / 60d, 1) : t.Total);
-            })
-            .ToList();
+        var rows = await aggregated.ToListAsync(ct);
+        return rows.Select(a => new PlayerStatTotal(a.PlayerId, a.GamesPlayed, a.Total)).ToList();
     }
 
     public async Task<IngestionStatusDto> GetIngestionStatusAsync(CancellationToken ct = default)
@@ -469,13 +485,13 @@ public class StatsQueryService(BluelineDbContext db)
     /// Skater rows for a season, limited to the game types the scope admits. Expressed as a
     /// Contains over an array so EF Core emits a single IN clause.
     /// </summary>
-    private IQueryable<SkaterGameStat> SkaterStats(int seasonId, GameScope scope)
+    internal IQueryable<SkaterGameStat> SkaterStats(int seasonId, GameScope scope)
     {
         var types = scope.GameTypes();
         return db.SkaterGameStats.Where(s => s.Game!.SeasonId == seasonId && types.Contains(s.Game.GameType));
     }
 
-    private IQueryable<GoalieGameStat> GoalieStats(int seasonId, GameScope scope)
+    internal IQueryable<GoalieGameStat> GoalieStats(int seasonId, GameScope scope)
     {
         var types = scope.GameTypes();
         return db.GoalieGameStats.Where(s => s.Game!.SeasonId == seasonId && types.Contains(s.Game.GameType));
@@ -484,7 +500,7 @@ public class StatsQueryService(BluelineDbContext db)
     /// <summary>
     /// A player can be traded mid-season, so label them by the club they played most games for.
     /// </summary>
-    private async Task<Dictionary<int, string>> GetPrimaryTeamAbbrevsAsync(
+    internal async Task<Dictionary<int, string>> GetPrimaryTeamAbbrevsAsync(
         int seasonId, List<int> playerIds, GameScope scope, CancellationToken ct)
     {
         var counts = await SkaterStats(seasonId, scope)
@@ -502,7 +518,45 @@ public class StatsQueryService(BluelineDbContext db)
                 g => abbrevs.GetValueOrDefault(g.OrderByDescending(x => x.Games).First().TeamId, ""));
     }
 
-    private static double SkaterValue(SkaterGameStat s, string key) =>
+    /// <summary>One player's season aggregate for a single stat. Time on ice is in seconds here.</summary>
+    internal record PlayerStatTotal(int PlayerId, int GamesPlayed, double Total);
+
+    /// <summary>One game's figure for one player, with the date the window needs. Minutes for time on ice.</summary>
+    internal record SkaterGameValue(int PlayerId, DateOnly Date, double Value);
+
+    /// <summary>
+    /// One stat's per-game values across the league since a date, read straight out of SQL.
+    ///
+    /// A plain Select into a named type translates fine — it is only GroupBy that will not — so
+    /// unlike <see cref="SkaterTotalsAsync"/> this can hand back a composable query.
+    ///
+    /// The switch earns its repetition here. Selecting the entity instead and picking the stat in
+    /// memory is the obvious shortcut and costs several times as much: a six-week window across
+    /// the league is tens of thousands of rows, and it is the difference between reading three
+    /// columns and materialising every one.
+    /// </summary>
+    internal IQueryable<SkaterGameValue> SkaterValuesSince(
+        int seasonId, string statKey, GameScope scope, DateOnly since)
+    {
+        var rows = SkaterStats(seasonId, scope).AsNoTracking().Where(s => s.Game!.GameDate >= since);
+
+        return statKey switch
+        {
+            "goals" => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.Goals)),
+            "assists" => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.Assists)),
+            "shots" => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.Shots)),
+            "hits" => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.Hits)),
+            "blockedShots" => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.BlockedShots)),
+            "pim" => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.Pim)),
+            "plusMinus" => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.PlusMinus)),
+            "takeaways" => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.Takeaways)),
+            "giveaways" => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.Giveaways)),
+            "toi" => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.TimeOnIceSeconds / 60d)),
+            _ => rows.Select(s => new SkaterGameValue(s.PlayerId, s.Game!.GameDate, s.Points)),
+        };
+    }
+
+    internal static double SkaterValue(SkaterGameStat s, string key) =>
         key switch
         {
             "goals" => s.Goals,

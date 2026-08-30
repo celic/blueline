@@ -235,6 +235,47 @@ public static class StatsEndpoints
             })
             .WithSummary("Season leaders for a stat.");
 
+        api.MapGet("/streaks", async (
+                StatsQueryService queries,
+                StreaksQueryService streaks,
+                CancellationToken ct,
+                int? season = null,
+                string stat = "points",
+                string? window = null,
+                int take = 5,
+                string? scope = null) =>
+            {
+                var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
+                if (seasonId is null) return Results.NotFound();
+
+                var board = await streaks.GetSkaterStreaksAsync(
+                    seasonId.Value, stat, RollingWindow.Parse(window), Clamp(take, 25),
+                    GameScopes.Parse(scope), ct);
+
+                return board is null ? Results.NotFound() : Results.Ok(board);
+            })
+            .WithSummary("Skaters furthest above their own season rate over a trailing window.");
+
+        api.MapGet("/streaks/goalies", async (
+                StatsQueryService queries,
+                StreaksQueryService streaks,
+                CancellationToken ct,
+                int? season = null,
+                string? window = null,
+                int take = 5,
+                string? scope = null) =>
+            {
+                var seasonId = season ?? await queries.GetLatestSeasonAsync(ct);
+                if (seasonId is null) return Results.NotFound();
+
+                var board = await streaks.GetGoalieStreaksAsync(
+                    seasonId.Value, RollingWindow.Parse(window), Clamp(take, 25),
+                    GameScopes.Parse(scope), ct);
+
+                return board is null ? Results.NotFound() : Results.Ok(board);
+            })
+            .WithSummary("Goalies furthest above their own season save percentage over a trailing window.");
+
         api.MapGet("/ingestion/status", async (StatsQueryService queries, CancellationToken ct) =>
                 await queries.GetIngestionStatusAsync(ct))
             .WithSummary("What is stored and how the last ingestion run went.");
