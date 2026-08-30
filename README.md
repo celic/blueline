@@ -13,7 +13,7 @@ stat lines, 5,575 goalie lines, 1,063 players, 32 teams. About 5 MB of SQLite.
 
 **Built and checked in a browser:** season leaders, player trends (cumulative and per-game with a
 rolling average), multi-player comparison, goalie leaders and goalie trends, team pace, the
-ingestion status page, and all eleven API endpoints. 44 NUnit tests pass; the solution builds
+ingestion status page, and all eleven API endpoints. 199 NUnit tests pass; the solution builds
 with no warnings.
 
 **Known gaps**, in rough order of how much they'd be missed:
@@ -70,6 +70,13 @@ Tests:
 ```bash
 dotnet test
 ```
+
+## Where the rest is written down
+
+| Document | What's in it |
+| --- | --- |
+| [docs/plan.md](docs/plan.md) | Outstanding work, ordered by value, with what is already done and why |
+| [docs/questions.md](docs/questions.md) | Open decisions, each with the default that applies if left unanswered |
 
 ## How it fits together
 
