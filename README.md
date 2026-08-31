@@ -196,6 +196,17 @@ docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll reconcile 
 | `Blueline__UseForwardedHeaders` | Set `true` behind a proxy that terminates TLS, so the app sees the original scheme and client address. Off by default, since trusting those headers with nothing in front would let a caller spoof them |
 | `Ingestion__SeedSeasonId` | `0` disables self-seeding |
 | `Ingestion__DailyJobEnabled` | `true` moves the daily schedule into the site, instead of a job outside it |
+| `ASPNETCORE_HTTPS_PORT` | **Leave unset.** Setting it makes the app redirect plain HTTP to that port, including the container's own health probe — see below |
+
+**TLS terminates in front of the container, and nothing inside it should know an HTTPS port.**
+`UseHttpsRedirection` decides whether to redirect from the HTTPS port it can find — a configured
+`ASPNETCORE_HTTPS_PORT`, or an HTTPS address the server is listening on. The image sets neither, so
+it never redirects, which is what lets the health probe and a proxied request both work. Measured
+against the running app: with no HTTPS port, `GET /health` returns 200 whether or not the request
+carries `X-Forwarded-Proto: https`; set `ASPNETCORE_HTTPS_PORT=8443` and the same plain request
+becomes `307 → https://localhost:8443/health`. Real traffic through a TLS proxy still succeeds,
+because forwarded headers mark it as already secure — it is the probe, arriving locally without
+them, that gets redirected.
 
 Blazor Server holds a WebSocket per visitor, so the host must allow long-lived connections. Past a
 single instance it would need sticky sessions or a Redis backplane; one instance is assumed here.

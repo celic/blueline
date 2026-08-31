@@ -444,25 +444,44 @@ release. That was dropped once the repository became public: the data is only ne
 environment, and bulk redistribution of the league's statistics is a question better avoided than
 answered. The fetch script was removed with it.
 
-### 3.2 Verify the image — `todo`
+### 3.2 Verify the image — `todo`, one of three checks now done
 
-**The host question is closed**: question 5 answered that the Dockerfile is the run tool for now, so
-there is no provider to choose, no free-tier terms to check and no domain to buy. What remains is
-the part of 3.1 that could not be finished — the image has never been built, because no Docker
-daemon was available on this machine.
-
-Three things to confirm on a machine that has one, all of which fail at run time rather than build
-time and so are invisible until then:
+**Docker still cannot run on this machine, and now the reason is known.** Docker Desktop is
+installed and its processes are running, but every call to the Linux engine returns
+`500 Internal Server Error`, because **WSL is not installed** — `wsl --status` exits 50 and
+`wsl --list` prints usage rather than a distribution list. Docker Desktop's Linux engine has nothing
+to run on. Installing WSL is a reboot-level change to the machine and is not mine to make, so the
+two checks that need a daemon stay open:
 
 - **The image builds**, and both the site and the CLI run from it.
 - **The non-root `app` user can write to a mounted volume.** A host-mounted directory arrives owned
-  by the host's user; if it does not, the app cannot create its database and the failure surfaces as
-  a boot crash rather than a permissions message.
-- **`UseHttpsRedirection` behind a TLS-terminating proxy**, flagged at the end of 2.4. It works
-  today only because no HTTPS port is configured in the container.
+  by the host's user, and if it does not match, the app cannot create its database and the failure
+  surfaces as a boot crash rather than a permissions message.
 
-Free-tier hosting stays a live constraint on the design even though no host is being picked — the
-whole reason this is one container and one small volume.
+**The third check did not need a daemon, and it is done.** `UseHttpsRedirection` behind a
+TLS-terminating proxy was the open question from 2.4, and it is answered by running the built site
+directly with the container's environment:
+
+| Configuration | `GET /health` plain | with `X-Forwarded-Proto: https` |
+| --- | --- | --- |
+| HTTP only, forwarded headers on — the image's shape | 200 | 200 |
+| HTTP only, forwarded headers off | 200 | 200 |
+| `ASPNETCORE_HTTPS_PORT=8443`, forwarded headers on | **307 → https://…:8443/health** | 200 |
+| `ASPNETCORE_HTTPS_PORT=8443`, forwarded headers off | **307** | **307** |
+
+So the image is safe as it stands: with no HTTPS port configured, `UseHttpsRedirection` has no
+destination and never redirects. Setting one is what breaks the probe — and real traffic through a
+proxy is unaffected either way, because forwarded headers mark it as already secure. It is the
+health check, arriving locally without those headers, that gets redirected. Now documented in the
+README as a setting to leave alone.
+
+**Measuring that turned up a defect in the HEALTHCHECK itself.** It used `curl --fail`, which only
+treats 400 and above as failure — so a 307 satisfied it. A container configured with an HTTPS port
+would have reported itself healthy on the strength of a redirect that never reached the health
+endpoint, meaning an unreachable database would have gone unnoticed by the very check that exists to
+notice it. The probe now asserts a 200. Verified both ways against the running app: in the image's
+shape the old and new checks both pass; with an HTTPS port set, the old one passes and the new one
+fails, which is the point.
 
 ### 3.3 Write the deployment runbook — `todo`
 
