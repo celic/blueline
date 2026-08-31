@@ -1,5 +1,9 @@
 @inherits LayoutComponentBase
 
+@* First thing in the tab order: five nav links stand between the top of every page and its
+   content, and a keyboard reader should not have to walk them on each navigation. *@
+<a class="skip-link" href="#content">Skip to content</a>
+
 <header class="topbar">
     <a class="brand" href="/"><span class="brand-mark"></span>Blueline</a>
     <nav class="nav">
@@ -13,7 +17,7 @@
     </nav>
 </header>
 
-<main class="page">
+<main class="page" id="content" tabindex="-1">
     @Body
 </main>
 

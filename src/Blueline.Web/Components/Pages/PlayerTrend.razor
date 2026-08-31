@@ -58,17 +58,17 @@ else
         <div class="field">
             <label>X axis</label>
             <div class="segmented">
-                <button class="@(!_timeAxis ? "on" : "")" @onclick="() => SetAxis(false)">Game</button>
-                <button class="@(_timeAxis ? "on" : "")" @onclick="() => SetAxis(true)">Date</button>
+                <button class="@(!_timeAxis ? "on" : "")" aria-pressed="@(!_timeAxis ? "true" : "false")" @onclick="() => SetAxis(false)">Game</button>
+                <button class="@(_timeAxis ? "on" : "")" aria-pressed="@(_timeAxis ? "true" : "false")" @onclick="() => SetAxis(true)">Date</button>
             </div>
         </div>
 
         <div class="field">
             <label>View</label>
             <div class="segmented">
-                <button class="@(_view == ViewMode.Cumulative ? "on" : "")"
+                <button class="@(_view == ViewMode.Cumulative ? "on" : "")" aria-pressed="@(_view == ViewMode.Cumulative ? "true" : "false")"
                         @onclick="() => SetView(ViewMode.Cumulative)">Cumulative</button>
-                <button class="@(_view == ViewMode.PerGame ? "on" : "")"
+                <button class="@(_view == ViewMode.PerGame ? "on" : "")" aria-pressed="@(_view == ViewMode.PerGame ? "true" : "false")"
                         @onclick="() => SetView(ViewMode.PerGame)">Per game</button>
             </div>
         </div>
@@ -102,9 +102,13 @@ else
             @foreach (var (series, index) in _comparisons.Select((s, i) => (s, i)))
             {
                 <span class="chip">
-                    <span class="swatch" style="background:@ChartPalette.For(index + 1)"></span>
+                    @* The same glyph the chart draws on that series: colour is not the only thing
+                       saying which line belongs to whom. *@
+                    <span class="swatch" style="color:@ChartPalette.For(index + 1)"
+                          aria-hidden="true">@ChartPalette.GlyphFor(index + 1)</span>
                     @series.SubjectName
-                    <button title="Remove" @onclick="() => RemoveComparison(series.SubjectId)">×</button>
+                    <button aria-label="Remove @series.SubjectName"
+                            @onclick="() => RemoveComparison(series.SubjectId)">×</button>
                 </span>
             }
         </div>
@@ -135,11 +139,11 @@ else
                 <table>
                     <thead>
                         <tr>
-                            <th class="rank">#</th>
-                            <th>Date</th>
-                            <th>Opp</th>
-                            <th class="num">@(StatDefinition.FindSkater(_stat)?.Unit)</th>
-                            <th class="num">Tot</th>
+                            <th scope="col" class="rank">#</th>
+                            <th scope="col">Date</th>
+                            <th scope="col">Opp</th>
+                            <th scope="col" class="num">@(StatDefinition.FindSkater(_stat)?.Unit)</th>
+                            <th scope="col" class="num">Tot</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -287,7 +291,7 @@ else
             {
                 datasets.Add(TrendDatasets.From(
                     series.SubjectName, series.Points, p => p.Cumulative, color, _timeAxis, length,
-                    fill: all.Count == 1));
+                    fill: all.Count == 1, pointStyle: ChartPalette.MarkerFor(i)));
             }
             else
             {
@@ -301,7 +305,8 @@ else
 
                 datasets.Add(TrendDatasets.From(
                     all.Count == 1 ? $"{_window.Label} average" : series.SubjectName,
-                    series.Points, p => p.RollingAverage, color, _timeAxis, length));
+                    series.Points, p => p.RollingAverage, color, _timeAxis, length,
+                    pointStyle: ChartPalette.MarkerFor(i)));
             }
         }
 
@@ -319,7 +324,9 @@ else
             BeginAtZero: _stat != "plusMinus",
             Precise: _view == ViewMode.PerGame,
             Subtitles: subtitles,
-            TimeAxis: _timeAxis);
+            TimeAxis: _timeAxis,
+            // Shapes on the lines only when there is more than one subject to tell apart.
+            Markers: all.Count > 1);
 
         _chartKey = $"{PlayerId}-{_seasonId}-{_scope}-{_stat}-{_window.Token}-{_view}-{_timeAxis}-{_comparisons.Count}";
     }

@@ -307,7 +307,7 @@ would redirect a plain-HTTP probe. In a container with TLS terminating upstream 
 configured and it does not redirect, which is why this works today — but a host that does
 configure one needs checking.
 
-### 2.5 Browser-driven UI tests — `done`
+### 2.5 Browser-driven UI tests — `done`, and later found to be testing stale code
 
 24 Playwright tests in `tests/Blueline.UiTests`, covering page loads, the goalie redirect, empty
 states, every trend control, and comparison. They run in about 3 seconds.
@@ -333,6 +333,14 @@ How the harness works:
 
 Playwright over Selenium, as the item argued: the assertions poll, which suits Blazor Server where
 every interaction is a round trip and nothing is synchronous. No explicit sleeps were needed.
+
+**A hole in the harness, found later and worth recording.** The test project had no reference to
+`Blueline.Web` — the fixture launches the site from its own build output, so none was needed to
+compile. The consequence is that `dotnet test tests/Blueline.UiTests` on its own started whatever
+DLL was last left in `bin`, and a green run could be a green run against yesterday's code. That is
+not hypothetical: a render bug that took down the circuit on every trend page survived a full pass
+this way. Verified by reintroducing the bug — with a project reference added, seven tests fail; without it, all seven pass. The reference is
+`ReferenceOutputAssembly="false"`, since it exists to order the build rather than to be used.
 
 Note for CI: `playwright.ps1 install chromium` must run once, and it downloads roughly 300 MB.
 
@@ -558,8 +566,34 @@ appear without a manual run.
   it. Group 6 raises the stakes: a dashboard of streaks is many aggregations per page load, not one.
 - **Mobile.** Best-effort, per question 8. The CSS has responsive breakpoints but has only been
   checked at desktop width. Fix it if it looks broken; do not treat phones as a first-class target.
-- **Accessibility.** Colour alone currently distinguishes compared players; the chips carry a
-  colour swatch but no other marker. Chart tooltips are not keyboard reachable.
+- **Accessibility — `done`, with one gap left.** Compared subjects now carry a shape as well as a
+  colour: a circle, triangle, square, diamond, star or cross, drawn on the line every tenth point,
+  repeated in the legend, and repeated again on the comparison chip — so the same mark identifies a
+  subject everywhere it appears. Markers are switched on only for multi-subject charts, where colour
+  was the sole distinction; a single-subject chart already separates its two series with a dash.
+
+  Also done: a skip link ahead of the five nav entries; focus-visible outlines on links, buttons and
+  chips, which had been relying on a browser default close to invisible on this background; a text
+  equivalent on every chart, since a canvas is a picture and nothing more to a screen reader
+  ("Cumulative points by game number. Connor McDavid ends at 138; Leon Draisaitl ends at 97");
+  `scope="col"` on table headers; named remove buttons on the chips; and a live region on the
+  comparison picker, whose results previously appeared in silence.
+
+  **Contrast was measured rather than eyeballed** — every pairing in the palette clears AA against
+  its background, the closest being muted text on the raised surface at 6.06:1. Nothing needed
+  changing, which is worth recording so it is not re-litigated.
+
+  **Two Blazor traps, both found by driving the live page.** `aria-pressed="@(condition)"` looks
+  right and is not: Blazor treats a bool attribute value as a boolean attribute, so true renders
+  `aria-pressed=""` and false omits it entirely — either way the state is lost. They are written as
+  words now. And a Razor comment placed inside an element's attribute list **compiles**, then
+  throws at render time when the browser is asked to `setAttribute` on a name that is a paragraph of
+  English; it took the circuit down on every trend page.
+
+  Still open: **chart data points are not keyboard reachable.** Chart.js tooltips are pointer-only.
+  The player and goalie pages carry a game log table beside the chart, which is the same data in an
+  accessible form, but the team page has no table at all — so a team's game-by-game figures are
+  currently unavailable to a keyboard or screen reader beyond the summary sentence.
 - **Team colours in charts.** The palette is four fixed colours. Team pages could use each club's
   own colour.
 - **Empty and error states.** Pages handle "no data" but not "the query failed".

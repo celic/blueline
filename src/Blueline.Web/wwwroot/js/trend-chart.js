@@ -23,7 +23,11 @@ export function render(canvasId, spec) {
         borderColor: d.color,
         backgroundColor: d.kind === 'bar' ? withAlpha(d.color, 0.45) : withAlpha(d.color, 0.12),
         borderWidth: d.kind === 'bar' ? 0 : 2,
-        pointRadius: 0,
+        pointStyle: d.pointStyle ?? 'circle',
+        // Markers only where they identify something: a chart of several subjects, where colour
+        // was otherwise the only thing telling the lines apart. Drawn every few points rather
+        // than on all eighty-two, which would read as a dotted line instead of a shape.
+        pointRadius: spec.markers && d.kind !== 'bar' ? markerRadius(d.data.length) : 0,
         pointHoverRadius: 4,
         pointHitRadius: 12,
         tension: 0.25,
@@ -75,7 +79,14 @@ export function render(canvasId, spec) {
             plugins: {
                 legend: {
                     display: datasets.length > 1,
-                    labels: { color: TEXT, usePointStyle: true, pointStyle: 'line', boxWidth: 24 },
+                    // Each dataset's own shape rather than a uniform line, so the legend is the
+                    // key to the markers on the chart.
+                    labels: {
+                        color: TEXT,
+                        usePointStyle: true,
+                        pointStyle: spec.markers ? undefined : 'line',
+                        boxWidth: 24,
+                    },
                 },
                 tooltip: {
                     backgroundColor: '#0f172a',
@@ -106,6 +117,13 @@ export function destroy(canvasId) {
         existing.destroy();
         charts.delete(canvasId);
     }
+}
+
+// A scriptable radius: visible on roughly every tenth point, hidden on the rest. Chart.js has no
+// "every Nth marker" option, and a marker on every game turns the line into a bead necklace.
+function markerRadius(pointCount) {
+    const step = Math.max(1, Math.round(pointCount / 10));
+    return ctx => (ctx.dataIndex % step === 0 ? 3.5 : 0);
 }
 
 function withAlpha(hex, alpha) {

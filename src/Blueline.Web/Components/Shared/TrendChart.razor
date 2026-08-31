@@ -1,13 +1,33 @@
 @implements IAsyncDisposable
 @inject IJSRuntime Js
 
+@*
+    A canvas is a picture to a screen reader and nothing more, so the chart carries its own
+    summary. Not a full transcript of eighty-two games — the tables beside these charts already
+    hold that — but what the drawing is of, and where each line ends up.
+*@
 <div class="chart-wrap">
-    <canvas id="@_canvasId"></canvas>
+    <canvas id="@_canvasId" role="img" aria-label="@Summary()"></canvas>
 </div>
 
 @code {
     /// <summary>Null renders an empty canvas rather than throwing; callers show their own empty state.</summary>
     [Parameter] public ChartSpec? Spec { get; set; }
+
+    /// <summary>Reads out as "<em>Points</em> by game number: McDavid ends at 138, Draisaitl at 97."</summary>
+    private string Summary()
+    {
+        if (Spec is null) return "";
+
+        var series = Spec.Datasets
+            .Select(d => new { d.Label, Last = d.Data.LastOrDefault(v => v is not null) })
+            .Where(d => d.Last is not null)
+            .Select(d => $"{d.Label} ends at {d.Last!.Value:0.###}")
+            .ToList();
+
+        var axes = $"{Spec.YLabel} by {Spec.XLabel.ToLowerInvariant()}";
+        return series.Count == 0 ? $"{axes}. No data." : $"{axes}. {string.Join("; ", series)}.";
+    }
 
     private readonly string _canvasId = $"chart-{Guid.NewGuid():N}";
     private IJSObjectReference? _module;

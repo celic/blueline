@@ -7,17 +7,32 @@
 
 <div class="field compare-picker">
     <label for="@_id">@Label</label>
+
+    @* aria-expanded is written as words rather than a bool: Blazor renders a true bool as a
+       valueless attribute and drops a false one entirely, and ARIA needs to hear "false". *@
     <input id="@_id"
            type="search"
            autocomplete="off"
+           role="combobox"
+           aria-expanded="@(_results.Count > 0 ? "true" : "false")"
+           aria-controls="@_resultsId"
            placeholder="@(AtCapacity ? $"Comparing {Capacity} already" : Placeholder)"
            disabled="@AtCapacity"
            value="@_term"
            @oninput="OnTermChanged" />
 
+    @* The results appear silently otherwise: a list that renders below the field says nothing to
+       a reader who cannot see it arrive. *@
+    <span class="sr-only" role="status">
+        @if (_searched && _term.Length >= MinimumTermLength)
+        {
+            <text>@Announcement()</text>
+        }
+    </span>
+
     @if (!AtCapacity && _results.Count > 0)
     {
-        <ul class="compare-results">
+        <ul class="compare-results" id="@_resultsId">
             @foreach (var option in _results)
             {
                 <li>
@@ -34,7 +49,7 @@
     }
     else if (!AtCapacity && _searched && _term.Length >= MinimumTermLength && _results.Count == 0)
     {
-        <ul class="compare-results">
+        <ul class="compare-results" id="@_resultsId">
             <li class="empty-result muted">Nothing matches "@_term".</li>
         </ul>
     }
@@ -61,6 +76,14 @@
     private const int MinimumTermLength = 2;
 
     private readonly string _id = $"compare-{Guid.NewGuid():N}";
+    private readonly string _resultsId = $"compare-results-{Guid.NewGuid():N}";
+
+    private string Announcement() => _results.Count switch
+    {
+        0 => $"No matches for {_term}",
+        1 => $"1 match for {_term}",
+        _ => $"{_results.Count} matches for {_term}",
+    };
     private string _term = "";
     private bool _searched;
     private IReadOnlyList<Option> _results = [];
