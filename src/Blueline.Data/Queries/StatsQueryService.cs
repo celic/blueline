@@ -257,9 +257,11 @@ public class StatsQueryService(BluelineDbContext db)
             }).ToList(),
             window);
 
+        var club = await GetGoaliePrimaryTeamsAsync(seasonId, [playerId], scope, ct);
+
         return new TrendSeries(
             player.FullName, playerId, definition.Key, definition.Label, seasonId, window.Size,
-            points, definition.IsRate, window.Unit);
+            points, definition.IsRate, window.Unit, club.GetValueOrDefault(playerId));
     }
 
     public async Task<IReadOnlyList<TeamSummary>> GetTeamsAsync(
@@ -328,9 +330,11 @@ public class StatsQueryService(BluelineDbContext db)
                 r.GameId, r.GameDate, r.IsHome, r.Opponent, SkaterValue(r.Stat, definition.Key))).ToList(),
             window);
 
+        var club = await GetPrimaryTeamAbbrevsAsync(seasonId, [playerId], scope, ct);
+
         return new TrendSeries(
             player.FullName, playerId, definition.Key, definition.Label, seasonId, window.Size, points,
-            RollingWindowUnit: window.Unit);
+            RollingWindowUnit: window.Unit, TeamAbbrev: club.GetValueOrDefault(playerId));
     }
 
     public async Task<TrendSeries?> GetTeamTrendAsync(
@@ -379,7 +383,7 @@ public class StatsQueryService(BluelineDbContext db)
 
         return new TrendSeries(
             team.Name, teamId, definition.Key, definition.Label, seasonId, window.Size, points,
-            RollingWindowUnit: window.Unit);
+            RollingWindowUnit: window.Unit, TeamAbbrev: team.Abbrev);
     }
 
     public async Task<IReadOnlyList<LeaderRow>> GetLeadersAsync(

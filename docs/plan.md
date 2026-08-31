@@ -614,8 +614,29 @@ appear without a manual run.
   without, so a club's game-by-game figures were reachable only with a mouse; it has a game log now,
   matching the player and goalie pages. Verified against Edmonton's season — 82 rows, newest first,
   standings points per game beside the running total.
-- **Team colours in charts.** The palette is four fixed colours. Team pages could use each club's
-  own colour.
+- **Team colours in charts — `done`.** Every chart now draws a club in its own colour, and a player
+  in their club's — the side the item did not ask for and the one that makes the dashboard read like
+  hockey rather than like a palette. McDavid's line is Oilers orange; the streak panels are a wall of
+  club colours.
+
+  Three decisions worth keeping:
+
+  - **Keyed on the abbreviation, not the team id.** The league reissues ids — Utah went from 59 to 68
+    on its rebrand while keeping `UTA` — so the abbreviation is the stable key for what is, after
+    all, a label.
+  - **Brand colours adapted to a dark background, not brand colours.** Several clubs are primarily
+    black or navy, which is invisible here, so Boston is gold, Los Angeles silver, Vegas gold. Every
+    entry clears 3:1 against the card — the floor for a graphical object — and a test fails if an
+    edit drops one below it. Colorado's burgundy needed lightening to pass at all.
+  - **A second club wearing the same red falls back to the palette.** Half the league is in red, and
+    two lines an eye cannot separate read worse than the unfamiliar colour they replaced. Verified
+    live with two teammates: McDavid takes Oilers orange, Draisaitl the palette, because orange is
+    already on the chart.
+
+  **The chips had to learn where the colour came from.** They previously took it straight from the
+  palette by index, which was right when the palette was the only source and wrong the moment the
+  chart could choose. Each page now records the colour it drew each subject in, and a UI test pins
+  the chip to the line it names.
 - **Empty and error states — `done`.** Pages handled "no data" carefully and "the query failed" not
   at all: an exception during a load took the circuit down and left the reader with Blazor's yellow
   strip and a page that no longer answered. An `ErrorBoundary` around the page body now keeps the

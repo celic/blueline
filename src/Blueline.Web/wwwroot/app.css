@@ -171,10 +171,12 @@ h2 { font-size: 1.05rem; margin: 0 0 .75rem; font-weight: 600; }
     color: var(--good);
 }
 
-.sparkline { width: 96px; height: 24px; overflow: visible; }
-.sparkline-line { fill: none; stroke: var(--accent-strong); stroke-width: 1.5; stroke-linejoin: round; }
-.sparkline-fill { fill: var(--accent-strong); opacity: .12; }
-.sparkline-last { fill: var(--accent-strong); }
+/* currentColor throughout, so one inline `color` paints a row in its club's colour and the
+   default stays the accent. */
+.sparkline { width: 96px; height: 24px; overflow: visible; color: var(--accent-strong); }
+.sparkline-line { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.sparkline-fill { fill: currentColor; opacity: .12; }
+.sparkline-last { fill: currentColor; }
 
 @media (max-width: 420px) {
     /* The line is the first thing to go: a name and a number still say what happened. */

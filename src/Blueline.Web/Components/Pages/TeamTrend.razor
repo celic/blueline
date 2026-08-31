@@ -87,7 +87,7 @@ else
                 <span class="chip">
                     @* The same glyph the chart draws on that series: colour is not the only thing
                        saying which line belongs to whom. *@
-                    <span class="swatch" style="color:@ChartPalette.For(index + 1)"
+                    <span class="swatch" style="color:@ColourOf(index + 1)"
                           aria-hidden="true">@ChartPalette.GlyphFor(index + 1)</span>
                     @series.SubjectName
                     <button aria-label="Remove @series.SubjectName"
@@ -180,6 +180,18 @@ else
     private bool _timeAxis;
     private string _chartKey = "";
 
+    /// <summary>
+    /// The colour each subject was drawn in, in the order they sit on the chart.
+    ///
+    /// Kept because the chart now chooses colours rather than taking them from a fixed palette: a
+    /// chip that guessed at the palette would disagree with the line it names as soon as a club
+    /// colour or a fallback was used.
+    /// </summary>
+    private readonly List<string> _seriesColours = [];
+
+    private string ColourOf(int index) =>
+        index < _seriesColours.Count ? _seriesColours[index] : ChartPalette.For(index);
+
     protected override async Task OnParametersSetAsync()
     {
         _seasons = await Queries.GetSeasonsAsync();
@@ -264,10 +276,16 @@ else
         var labels = Enumerable.Range(1, length).Select(i => i.ToString()).ToList();
         var datasets = new List<ChartDataset>();
 
+        // Colours already spoken for, so a second club with the same red falls back instead.
+        var used = new List<string>();
+        _seriesColours.Clear();
+
         for (var i = 0; i < all.Count; i++)
         {
             var series = all[i];
-            var colour = ChartPalette.For(i);
+            var colour = TeamColours.Pick(series.TeamAbbrev, used, ChartPalette.For(i));
+            used.Add(colour);
+            _seriesColours.Add(colour);
 
             if (_cumulative)
             {

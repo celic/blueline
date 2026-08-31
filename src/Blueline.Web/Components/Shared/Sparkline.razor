@@ -8,7 +8,7 @@
 *@
 
 <svg class="sparkline" viewBox="0 0 @Width @Height" preserveAspectRatio="none" role="img"
-     aria-label="@Label" focusable="false">
+     aria-label="@Label" focusable="false" style="@(Colour is null ? null : $"color:{Colour}")">
     @if (_points.Length > 1)
     {
         <polygon class="sparkline-fill" points="@_area" />
@@ -22,6 +22,12 @@
 
     /// <summary>Read out instead of the drawing, which is decoration to a screen reader.</summary>
     [Parameter] public string Label { get; set; } = "";
+
+    /// <summary>
+    /// The club's colour, when the row belongs to one. Set as <c>color</c> so the stroke, the fill
+    /// and the end point all follow from a single declaration.
+    /// </summary>
+    [Parameter] public string? Colour { get; set; }
 
     private const int Width = 96;
     private const int Height = 24;

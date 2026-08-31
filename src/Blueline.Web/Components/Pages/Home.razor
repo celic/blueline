@@ -100,6 +100,7 @@ else
                                         </span>
                                     </span>
                                     <Sparkline Values="leader.Recent"
+                                               Colour="@TeamColours.For(leader.TeamAbbrev)"
                                                Label="@($"{leader.SubjectName}, {board.StatLabel.ToLowerInvariant()} over the {board.WindowLabel}")" />
                                     <span class="streak-lift">@Lift(board, leader)</span>
                                 </a>
