@@ -9,8 +9,8 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 from 1.6, and what remains is mostly one piece of work:
 
 - **The home page is a streaks dashboard** — group 6, complete.
-- **Deployment is waiting on things outside the repository** — 3.2 needs a Docker daemon, 3.3 needs
-  3.2, and 4.3 needs the 2026-27 season to open on 2026-09-29.
+- **Deployment**: the image is built and verified (3.2), so 3.3 — the runbook — is unblocked. 4.3
+  still waits for the 2026-27 season to open on 2026-09-29.
 
 Both questions raised by the last revision are now answered. **Question 10 confirms 2.6 as built**:
 the schedule runs on the same host as a separate process, never behind a reachable API. **Question
@@ -455,44 +455,43 @@ release. That was dropped once the repository became public: the data is only ne
 environment, and bulk redistribution of the league's statistics is a question better avoided than
 answered. The fetch script was removed with it.
 
-### 3.2 Verify the image — `todo`, one of three checks now done
+### 3.2 Verify the image — `done`
 
-**Docker still cannot run on this machine, and now the reason is known.** Docker Desktop is
-installed and its processes are running, but every call to the Linux engine returns
-`500 Internal Server Error`, because **WSL is not installed** — `wsl --status` exits 50 and
-`wsl --list` prints usage rather than a distribution list. Docker Desktop's Linux engine has nothing
-to run on. Installing WSL is a reboot-level change to the machine and is not mine to make, so the
-two checks that need a daemon stay open:
+Docker runs on this machine now, and the image has been built and exercised. What blocked it was
+never Docker: virtualization was disabled in the firmware, so no hypervisor could start, WSL had no
+distribution registered, and Docker Desktop's VM never came up — the engine answered 500 through
+every pipe. `systeminfo` said it in one line, `Virtualization Enabled In Firmware: No`, which is
+where this should have been checked first rather than after two restarts and a reinstall theory.
 
-- **The image builds**, and both the site and the CLI run from it.
-- **The non-root `app` user can write to a mounted volume.** A host-mounted directory arrives owned
-  by the host's user, and if it does not match, the app cannot create its database and the failure
-  surfaces as a boot crash rather than a permissions message.
+All three checks pass:
 
-**The third check did not need a daemon, and it is done.** `UseHttpsRedirection` behind a
-TLS-terminating proxy was the open question from 2.4, and it is answered by running the built site
-directly with the container's environment:
+- **The image builds**, and both the site and the CLI run from it. The site answers `/` and
+  `/health` on the published port; `Blueline.Cli.dll status` reports the database path and its
+  contents against the same volume.
+- **The non-root `app` user (uid 1654) can write to a mounted volume** — a named volume and a bind
+  mount both, with `blueline.db` and its WAL sidecars owned by `app`. On Docker Desktop a bind mount
+  arrives `drwxrwxrwx`, so this says nothing about a Linux host, where the directory carries the
+  host's ownership and may still need chowning. The Dockerfile already says so.
+- **`UseHttpsRedirection` behaves as measured outside the container.** The container log carries
+  `Failed to determine the https port for redirect`, which is the mechanism: no HTTPS port is
+  configured, so nothing redirects and the probe reaches the endpoint.
 
-| Configuration | `GET /health` plain | with `X-Forwarded-Proto: https` |
-| --- | --- | --- |
-| HTTP only, forwarded headers on — the image's shape | 200 | 200 |
-| HTTP only, forwarded headers off | 200 | 200 |
-| `ASPNETCORE_HTTPS_PORT=8443`, forwarded headers on | **307 → https://…:8443/health** | 200 |
-| `ASPNETCORE_HTTPS_PORT=8443`, forwarded headers off | **307** | **307** |
+**The hardened HEALTHCHECK works where it matters.** `docker ps` reported `Up 25 seconds (healthy)`,
+which is the first time that check has run inside a container rather than as a shell command against
+the app.
 
-So the image is safe as it stands: with no HTTPS port configured, `UseHttpsRedirection` has no
-destination and never redirects. Setting one is what breaks the probe — and real traffic through a
-proxy is unaffected either way, because forwarded headers mark it as already secure. It is the
-health check, arriving locally without those headers, that gets redirected. Now documented in the
-README as a setting to leave alone.
+Two findings that only a real build could produce:
 
-**Measuring that turned up a defect in the HEALTHCHECK itself.** It used `curl --fail`, which only
-treats 400 and above as failure — so a 307 satisfied it. A container configured with an HTTPS port
-would have reported itself healthy on the strength of a redirect that never reached the health
-endpoint, meaning an unreachable database would have gone unnoticed by the very check that exists to
-notice it. The probe now asserts a 200. Verified both ways against the running app: in the image's
-shape the old and new checks both pass; with an HTTPS port set, the old one passes and the new one
-fails, which is the point.
+- **`docker run … blueline dotnet Blueline.Cli.dll status` silently starts a second web server.**
+  Arguments are appended to the entrypoint rather than replacing it, so the site starts, ignores
+  them, and sits there — and in this case a second writer against the same SQLite volume. The
+  documented form with `--entrypoint dotnet` is correct and now says why it is not optional.
+- **The image carries the season archives** — `/app/seed` holds both, 1.9 MB, because the build
+  copies whatever is in `seed/`. That is deliberate, and it is what let a container come up with
+  2,792 games in seconds. But an image is a distribution artifact, and the archives are meant to
+  stay private, so pushing one built after `build-seasons.ps1` to a public registry publishes them.
+  Excluding `seed/` from the build context was tried and reverted: the Dockerfile copies it on
+  purpose, and the honest fix is the warning rather than a redesign.
 
 ### 3.3 Write the deployment runbook — `todo`
 

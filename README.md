@@ -109,6 +109,16 @@ lets you seed, reconcile or inspect the very same volume the site is using:
 docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll status
 ```
 
+**`--entrypoint dotnet` is not optional.** The image's entrypoint is the site, so arguments given
+without it are appended to that command rather than replacing it: `docker run … blueline dotnet
+Blueline.Cli.dll status` starts a *second web server* against the same volume and sits there. It
+does not fail, which is what makes it worth knowing.
+
+**Do not push an image built with archives present to a public registry.** The build copies
+whatever is in `seed/`, so an image built after `build-seasons.ps1` carries a couple of MB of the
+league's statistics — which is the point when the deployment is yours, and a publication when the
+registry is not.
+
 ### How data gets into the database
 
 **From season archives — no API calls, a few seconds each.** An archive is a compressed export of
