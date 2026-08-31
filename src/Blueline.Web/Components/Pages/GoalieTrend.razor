@@ -157,6 +157,13 @@ else
     [SupplyParameterFromQuery(Name = "season")] public int? SeasonQuery { get; set; }
     [SupplyParameterFromQuery(Name = "stat")] public string? StatQuery { get; set; }
 
+    /// <summary>
+    /// Carried so a link can arrive on the same window the reader was already looking at — the
+    /// dashboard's panels link here, and landing on a ten-game average after reading a fourteen-day
+    /// one would quietly show different numbers than the ones that were clicked.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "window")] public string? WindowQuery { get; set; }
+
     private IReadOnlyList<SeasonSummary> _seasons = [];
     private readonly List<TrendSeries> _comparisons = [];
 
@@ -186,6 +193,8 @@ else
         _scope = Display.Value.DefaultGameScope;
         if (!string.IsNullOrWhiteSpace(StatQuery) && StatDefinition.FindGoalie(StatQuery) is not null)
             _stat = StatQuery;
+
+        if (!string.IsNullOrWhiteSpace(WindowQuery)) _window = RollingWindow.Parse(WindowQuery);
 
         await LoadCandidatesAsync();
         await LoadAsync();

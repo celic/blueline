@@ -8,9 +8,7 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 **Revised 2026-08-30 against the answers in `questions.md`.** Groups 1 and 2 are now complete apart
 from 1.6, and what remains is mostly one piece of work:
 
-- **The home page becomes a streaks dashboard** — group 6. The largest piece of new work in the
-  document. Leaders has moved off `/` (6.1) and the days-based window it needs is built (1.6), so
-  what remains is computing the streaks and building the page.
+- **The home page is a streaks dashboard** — group 6, complete.
 - **Deployment is waiting on things outside the repository** — 3.2 needs a Docker daemon, 3.3 needs
   3.2, and 4.3 needs the 2026-27 season to open on 2026-09-29.
 
@@ -600,50 +598,141 @@ the old bookmark still resolving. 26 UI tests pass.
 Verified in a browser at both routes: the landing page renders its four cards and the season line,
 and `/leaders` still lists McDavid at 138 points.
 
-### 6.2 Compute streaks — `todo`
+### 6.2 Compute streaks — `done`
 
-The query work, and the part with real substance in it. Depends on 1.6, since "the past two weeks"
-is a days-based window and nothing today can express one.
+`StreaksQueryService` answers "who is hot", against the rate each subject normally produces.
+`GET /api/streaks` for skaters, `GET /api/streaks/goalies` for save percentage, both taking a
+window in games or days.
 
-- **A streak here is a leaderboard over a trailing window**, not a consecutive-games run. "Most
-  points in the last 10 games" ranks every player over their last 10; "longest point streak" — a
-  genuine consecutive run — is a different computation and a natural second wave.
-- **Windows come in both kinds.** Games for skater volume, days for anything where availability
-  varies, which is most of what makes a goalie interesting.
-- **Qualification matters more here than on a season leaderboard.** Over 14 days a goalie with one
-  start can post a .960 and top the board, which is noise presented as a finding. 1.1 already
-  established the pattern with `RateQualificationMinutes`, and a window-scaled version of it is what
-  keeps the panel honest.
-- **Cost is the open risk.** Season leaders aggregate ~50,000 rows once; a dashboard of six panels
-  aggregates repeatedly, on the page every visitor lands on first. Worth measuring before building
-  the UI on top of it, and it is what turns the caching bullet in group 5 from polish into
-  something load-bearing.
+**It disagrees with the leaderboard, which is the entire point.** On the live 2025-26 season the
+ten-game points board reads Soderblom (8 points, 3.6× his rate), Samoskevich, Hartman — not McDavid,
+who sits at a lift of about 1.0 because he is producing exactly what he always does. That is what
+question 11 asked for, and the tests pin it with two players whose ten-game totals are identical
+and whose lifts are not.
 
-### 6.3 Build the dashboard — `todo`
+The guards matter more than the ranking, and they are relative rather than a table of per-stat
+constants:
 
-Graphically dense, per the answer: panels of small charts rather than a page of tables. Every panel
-links through to the trend page for its subject, so the dashboard is a way into the site rather than
-a terminus.
+- **A floor at 40% of the board's own leader.** One assist against a leader's ten is an enormous
+  multiple of a fringe player's baseline and is not a streak. Expressed against the best run in that
+  window, this needs no number invented per stat or per window size.
+- **The same idea on goalie workload**, which is what keeps a backup's .1000 over eighteen shots off
+  the board — the specific failure that makes a rate leaderboard useless over a short window.
+- **Ten games of season before a subject has a baseline at all**, and three appearances inside a
+  days window before it is called form.
+- **The baseline includes the window.** Excluding it would leave a player whose only production came
+  in the window dividing by zero; including it also bounds the lift naturally.
 
-- **Ranked by departure from a player's own baseline, not by total** — question 11, answered: the
-  most interesting runs are what belongs here, and league leaders already have their own page after
-  6.1. So a fourth-liner with 8 points in 10 games outranks a star with 12, because the first is
-  news and the second is Tuesday. This needs a baseline per player — most naturally their own rate
-  across the season — and a guard for players with too little history to have one.
-- **Week by week is fast enough.** The answer explicitly allows it, which takes the pressure off
-  daily churn: the page does not need to manufacture movement on a night with two games.
-- **The dashboard changes with the data, not with the clock.** Its content moves because a trailing
-  window moves, and on an off day nothing changes. This matters in the off-season, when the newest
-  game is months old and every "last 10 games" panel is frozen: the page needs to say what it is
-  showing rather than presenting stale windows as current form. Week-by-week movement being
-  acceptable makes this easier — there is no reason to force variety that the games did not
-  produce.
-- **Sparklines, not full charts.** Chart.js is already vendored and `TrendDatasets` already builds
-  the shapes; a panel wants a small line with no axes, not the full trend chart.
+Windows end on the **newest game stored**, not today, so the boards keep answering in the
+off-season. What they then describe is the closing weeks of the last season played, which is 6.4's
+problem to say out loud.
 
-### 6.4 Off-season and thin-data behaviour — `todo`
+**Cost was the open risk, so it was measured rather than argued about.** Warm, against the real
+two-season database:
 
-Everything above assumes recent games. Right now there are none — 2025-26 is complete and 2026-27
-does not open until **2026-09-29**, so the first version of this page will be built entirely against
-a season that has ended. That is a feature: it forces the empty and stale states to be designed
-first rather than discovered in September.
+| Board | Before | After |
+| --- | --- | --- |
+| Points, 10-game window | 250-390 ms | **64-92 ms** |
+| Goals, 20-game window | 265-394 ms | **62-73 ms** |
+| Hits, 14-day window | 58-87 ms | **43-52 ms** |
+| Goalie save percentage, 14 days | 8-10 ms | **9-11 ms** |
+| `/api/leaders`, for comparison | 40 ms | 40 ms |
+
+Two changes account for the difference, and both were found by measuring:
+
+- **`AsNoTracking` on the window fetch**, worth roughly 2.5× on its own. The projection carried the
+  whole entity, so the change tracker was taking an identity snapshot of every row — and a six-week
+  window across the league is tens of thousands of rows, not the eighty a single player's trend
+  pulls.
+- **Selecting three columns instead of the entity.** `SkaterValuesSince` picks the stat in SQL,
+  which needs the same eleven-branch switch the leaderboards use. A plain `Select` into a named type
+  translates fine; it is only `GroupBy` that will not.
+
+A six-panel dashboard is therefore roughly 300-400 ms of query time if the panels run in sequence,
+which they must — they share a scoped `DbContext`. That is the number question 7 should be answered
+against, and it is what makes caching load-bearing rather than polish for 6.3.
+
+**A bug found while verifying against real data.** Every goalie on the board had a blank club.
+`GetPrimaryTeamAbbrevsAsync` counts *skater* rows, of which a goalie has none, so it returned
+nothing and the board rendered five nameless clubs. There was already a goalie equivalent; the
+board now picks the right one. The unit tests had not caught it because they assert on ids, and it
+took a board printed from the live database to see it.
+
+`SkaterTotalsAsync` was extracted from `GetLeadersAsync` so the season baseline is computed once
+rather than copied. Projecting the grouped rows into a named type inside SQL was tried first and
+does not translate — the tests caught it — so the rows are materialised and named in memory, which
+costs nothing against the aggregation that produced them.
+
+### 6.3 Build the dashboard — `done`
+
+`/` is now five panels of runs — points over ten games, goals over twenty, assists over ten, hits
+over a fortnight, and goalie save percentage over a fortnight — each row a name, the run, a
+sparkline and the multiple it represents, linking through to the trend that produced it.
+
+**The sparklines cost nothing extra.** `StreakLeader` carries the window's own per-game figures,
+which were already in hand when the board was computed; fetching them per player would have turned
+one query per panel into one per row on it. They are drawn as inline SVG rather than Chart.js:
+twenty-five canvases with their own animation loops is a great deal of browser for a line with no
+axes, no legend and no tooltip, and the SVG arrives with the page instead of after an interop
+round trip.
+
+**Cost was measured before deciding about caching, and the answer was not to.** The whole page
+renders warm in **235-270 ms**, five panels included — panels run in sequence because they share a
+scoped `DbContext`, so this is the honest serial number. That is tolerable without a cache, so none
+was added; the measurement is recorded against question 7 instead, where the open half is how much
+memory the cached results would occupy.
+
+Details worth keeping:
+
+- **The window travels with the link.** The trend pages now accept `?window=`, so clicking a
+  fourteen-day run lands on a fourteen-day average rather than silently switching to ten games and
+  showing different numbers than the ones that were clicked.
+- **A panel nobody qualifies for says so.** In a quiet week most of them are empty, and on a short
+  season a twenty-game window cannot be filled at all — which is exactly what the seeded UI test
+  exercises.
+- **A flat run sits on the midline** rather than at the top. There is no range to scale against, and
+  dividing by zero span would have put every point at full height, reading as "off the chart" when
+  it means "steady".
+- **Sparklines are the first thing dropped below 420px**, where a name and a number still say what
+  happened.
+
+Verified against the live database: Soderblom at 3.6x his rate leads the points panel, and McDavid
+appears nowhere — which is the whole point of the page. Six UI tests cover the panels, the empty
+state, the link-through and the window travelling with it.
+
+**A test assertion had to be weakened, and the reason is worth recording.** Asserting the sparkline
+was *visible* failed: the seeded player scores three every night, so the line is perfectly flat, and
+a zero-height box is invisible to Playwright while being on screen and correct. The test now counts
+the vertices instead — one per game in the window — which is the stronger claim anyway.
+
+### 6.4 Off-season and thin-data behaviour — `done`
+
+A trailing window is silent about its own age. "Most points in the last ten games" reads identically
+in March and in August, when those ten games are four months old — so the dashboard now says which
+it is, in three states classified by how long the silence has lasted:
+
+- **Current**, within three days. Clubs play every second or third night and thirty-two of them are
+  doing it at once, so a day or two of quiet is normal and a week is not.
+- **Behind**, four to twenty-one days. Either a scheduled break or a collector that stopped.
+- **Off-season**, beyond that. The longest breaks a season contains — an all-star weekend, an
+  Olympic break — run to about a fortnight, so three weeks of nothing is not a gap in the schedule.
+
+**The site cannot tell a finished season from a stalled collector by looking at games alone, so it
+does not pretend to.** When a gap opens it checks whether ingestion itself is current: with a
+successful run behind it in the last two days, the silence is evidence that the league is not
+playing; without one, the notice adds that stats may also be behind and points at the Data page.
+A database with no ingestion runs at all — which is exactly what the UI tests build — gets the
+honest version rather than the confident one.
+
+**Thin data is a separate failure, and it was invisible.** An empty panel read "Nobody clears the
+bar over this window" whether nobody stood out or nobody had played the window at all. `StreakBoard`
+now reports how many subjects held a full window before any floor was applied, so a twenty-game
+panel on a six-game season says "Nobody has played 20 games yet this season" instead of implying a
+quiet week. That is the state every panel will be in for the opening fortnight of 2026-27.
+
+Verified against the live database, which is in the state this item exists for: the page leads with
+"The 2025-26 season is over. The last game was 4 months ago, on 16 April 2026, so these panels
+describe how it finished rather than current form."
+
+Group 6 is complete.
+

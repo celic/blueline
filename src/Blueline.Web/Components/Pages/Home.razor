@@ -1,25 +1,35 @@
 @page "/"
 @rendermode InteractiveServer
 @inject StatsQueryService Queries
+@inject StreaksQueryService Streaks
+@inject IOptions<DisplayOptions> Display
+@inject TimeProvider Clock
+@using Microsoft.Extensions.Options
 
 @*
-    The landing page. Deliberately thin for now: this is where the streaks dashboard goes
-    (plan.md group 6), and it was given its own empty page rather than being grafted onto the
-    leaders table that used to live here.
+    The landing page: who is hot right now, rather than who is best.
 
-    Thin is not the same as unfinished, though — a visitor arriving at the root should be able to
-    reach anything the site does and see that it holds real data, which is what this covers until
-    the panels land.
+    Ranked by how far a run departs from what that subject normally does, not by raw total —
+    league leaders have their own page, and ranking by total would put the same handful of names
+    here for weeks. Every row links through to the trend that produced it.
 *@
 
-<PageTitle>Blueline — Hockey stats as trends</PageTitle>
+<PageTitle>Blueline — Who is hot</PageTitle>
 
 <div class="page-head">
     <h1>Blueline</h1>
-    <p>Hockey statistics as trends over time — how a season actually unfolded, game by game.</p>
+    <p>
+        Hockey statistics as trends over time. These are the runs furthest above what each player
+        normally produces — not the biggest totals, which
+        <a href="/leaders">Leaders</a> already answers.
+    </p>
 </div>
 
-@if (_seasons.Count == 0)
+@if (_loading)
+{
+    <div class="empty">Working out who is hot…</div>
+}
+else if (_boards.Count == 0)
 {
     <div class="empty">
         No games stored yet. Load a season with <code>dotnet run --project src/Blueline.Cli -- backfill 20252026</code>.
@@ -27,42 +37,207 @@
 }
 else
 {
-    <div class="tiles">
-        <a class="card tile" href="/leaders">
-            <h2>Leaders</h2>
-            <p class="muted">Who is ahead, for any stat the box score carries.</p>
-        </a>
-        <a class="card tile" href="/players">
-            <h2>Players</h2>
-            <p class="muted">Search any skater and chart their season. Overlay up to five.</p>
-        </a>
-        <a class="card tile" href="/goalies">
-            <h2>Goalies</h2>
-            <p class="muted">Save percentage and workload, weighted by shots rather than averaged.</p>
-        </a>
-        <a class="card tile" href="/teams">
-            <h2>Teams</h2>
-            <p class="muted">Standings, and how each club banked its points across the year.</p>
-        </a>
+    @if (_freshness != SeasonFreshness.Current)
+    {
+        @* A trailing window says nothing about its own age, so the page has to. *@
+        <div class="notice">
+            @if (_freshness == SeasonFreshness.OffSeason)
+            {
+                <strong>The @_seasonLabel season is over.</strong>
+                <text>
+                    The last game was @SeasonFreshnessRules.Describe(_daysSince), on
+                    @_asOf!.Value.ToString("d MMMM yyyy"), so these panels describe how it finished
+                    rather than current form.
+                </text>
+            }
+            else
+            {
+                <strong>No games for @_daysSince days.</strong>
+                <text>
+                    The last was on @_asOf!.Value.ToString("d MMMM yyyy"), so these panels describe
+                    the last games played rather than current form.
+                </text>
+            }
+            @if (!_collectionIsCurrent)
+            {
+                <text>
+                    Stats may also be behind: <a href="/data">the Data page</a> shows when they were
+                    last collected.
+                </text>
+            }
+        </div>
+    }
+
+    <div class="tiles streak-panels">
+        @foreach (var board in _boards)
+        {
+            <section class="card panel">
+                <header class="panel-head">
+                    <h2>@board.StatLabel</h2>
+                    <span class="muted">@board.WindowLabel</span>
+                </header>
+
+                @if (board.Leaders.Count == 0)
+                {
+                    @* The two empty boards read the same and mean opposite things. *@
+                    <p class="muted panel-empty">
+                        @(board.TooEarly
+                            ? $"Nobody has played {board.WindowLabel.Replace("last ", "")} yet this season."
+                            : "Nobody stands out over this window.")
+                    </p>
+                }
+                else
+                {
+                    <ol class="streak-list">
+                        @foreach (var leader in board.Leaders)
+                        {
+                            <li>
+                                <a href="@Link(board, leader)">
+                                    <span class="streak-who">
+                                        <span class="streak-name">@leader.SubjectName</span>
+                                        <span class="muted streak-detail">
+                                            @leader.TeamAbbrev · @Describe(board, leader)
+                                        </span>
+                                    </span>
+                                    <Sparkline Values="leader.Recent"
+                                               Label="@($"{leader.SubjectName}, {board.StatLabel.ToLowerInvariant()} over the {board.WindowLabel}")" />
+                                    <span class="streak-lift">@Lift(board, leader)</span>
+                                </a>
+                            </li>
+                        }
+                    </ol>
+                }
+            </section>
+        }
     </div>
 
     <div class="card" style="margin-top:1.25rem">
         <p class="muted" style="margin:0">
-            @_gamesStored.ToString("N0") games stored across
-            @(_seasons.Count == 1 ? "one season" : $"{_seasons.Count} seasons"),
-            @_seasons[^1].Label to @_seasons[0].Label.
+            Windows end on @_asOf!.Value.ToString("d MMMM yyyy"), the most recent game stored —
+            @_gamesStored.ToString("N0") games across
+            @(_seasons.Count == 1 ? "one season" : $"{_seasons.Count} seasons").
             <a href="/data">Where the data came from</a>.
         </p>
     </div>
 }
 
 @code {
+    /// <summary>
+    /// What the page shows, and why these five.
+    ///
+    /// Points and goals are what a run is usually read in; assists and hits catch players whose
+    /// contribution is not scoring, which is where the surprising names come from. Save
+    /// percentage is on a days window deliberately — a fortnight is four starts for one goalie
+    /// and eight for another, and only the calendar compares them fairly.
+    ///
+    /// Five rather than a dozen: each panel is a query, and they cannot overlap on one scoped
+    /// database context.
+    /// </summary>
+    private static readonly (string Stat, RollingWindow Window)[] Panels =
+    [
+        ("points", RollingWindow.Games(10)),
+        ("goals", RollingWindow.Games(20)),
+        ("assists", RollingWindow.Games(10)),
+        ("hits", RollingWindow.Days(14)),
+    ];
+
+    private const int PerPanel = 5;
+
+    /// <summary>
+    /// How recently ingestion must have finished for its silence to be evidence rather than
+    /// absence. The job runs daily, so two days covers one missed night without crying wolf.
+    /// </summary>
+    private const int RunConsideredCurrentDays = 2;
+
+    private readonly List<StreakBoard> _boards = [];
     private IReadOnlyList<SeasonSummary> _seasons = [];
+    private DateOnly? _asOf;
     private int _gamesStored;
+    private bool _loading = true;
+    private string _seasonLabel = "";
+    private SeasonFreshness _freshness = SeasonFreshness.Current;
+    private int _daysSince;
+
+    /// <summary>
+    /// Whether collection itself is keeping up, which decides how a gap should be read. With a
+    /// recent successful run behind it, silence means the league is not playing; without one, the
+    /// site cannot claim that, and saying so is better than implying the season ended.
+    /// </summary>
+    private bool _collectionIsCurrent = true;
+
+    private DateOnly Today => DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime);
 
     protected override async Task OnInitializedAsync()
     {
         _seasons = await Queries.GetSeasonsAsync();
         _gamesStored = _seasons.Sum(s => s.GameCount);
+
+        if (_seasons.Count == 0)
+        {
+            _loading = false;
+            return;
+        }
+
+        var seasonId = _seasons[0].SeasonId;
+        _seasonLabel = _seasons[0].Label;
+        var scope = Display.Value.DefaultGameScope;
+
+        foreach (var (stat, window) in Panels)
+        {
+            var board = await Streaks.GetSkaterStreaksAsync(seasonId, stat, window, PerPanel, scope);
+            if (board is not null) _boards.Add(board);
+        }
+
+        var goalies = await Streaks.GetGoalieStreaksAsync(seasonId, RollingWindow.Days(14), PerPanel, scope);
+        if (goalies is not null) _boards.Add(goalies);
+
+        _asOf = _boards.Count > 0 ? _boards[0].AsOf : null;
+
+        if (_asOf is not null)
+        {
+            _freshness = SeasonFreshnessRules.Classify(_asOf.Value, Today);
+            _daysSince = SeasonFreshnessRules.DaysSince(_asOf.Value, Today);
+
+            if (_freshness != SeasonFreshness.Current)
+            {
+                var status = await Queries.GetIngestionStatusAsync();
+                _collectionIsCurrent =
+                    status.LastRunStatus != "Failed" &&
+                    status.LastRunCompletedUtc is { } completed &&
+                    Clock.GetUtcNow() - completed < TimeSpan.FromDays(RunConsideredCurrentDays);
+            }
+        }
+
+        _loading = false;
     }
+
+    /// <summary>
+    /// Through to the trend that produced the run, on the same stat and window the panel used, so
+    /// the chart on the other side is the one the reader was just looking at.
+    /// </summary>
+    private static string Link(StreakBoard board, StreakLeader leader) =>
+        board.IsRate
+            ? $"/goalies/{leader.SubjectId}?stat={board.Stat}&window={Token(board)}"
+            : $"/players/{leader.SubjectId}?stat={board.Stat}&window={Token(board)}";
+
+    private static string Token(StreakBoard board) =>
+        board.WindowUnit == WindowUnit.Days ? $"{board.Window}d" : $"{board.Window}g";
+
+    /// <summary>The run itself, in the units the stat is quoted in.</summary>
+    private static string Describe(StreakBoard board, StreakLeader leader) =>
+        board.IsRate
+            ? $"{Rate(leader.Total)} over {leader.GamesInWindow} starts"
+            : $"{leader.Total:0.#} in {leader.GamesInWindow} games";
+
+    /// <summary>
+    /// A multiple for a counting stat and a difference for a rate, because that is how each is
+    /// actually spoken about: "three times his rate", but "twenty points of save percentage".
+    /// </summary>
+    private static string Lift(StreakBoard board, StreakLeader leader) =>
+        board.IsRate
+            ? $"+{Rate(leader.Lift).TrimStart('0')}"
+            : $"{leader.Lift:0.0}×";
+
+    /// <summary>Save percentages are written .923, not 0.92.</summary>
+    private static string Rate(double value) => value.ToString(".000");
 }

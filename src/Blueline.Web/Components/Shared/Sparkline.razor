@@ -1,0 +1,74 @@
+@*
+    A run's shape, small enough to sit in a table row.
+
+    Inline SVG rather than Chart.js. A dashboard shows five runs across five panels, and
+    twenty-five canvases with their own animation loops is a great deal of browser for a line
+    with no axes, no legend and no tooltip. This renders server-side with the page, costs nothing
+    to draw, and needs no interop round trip before it appears.
+*@
+
+<svg class="sparkline" viewBox="0 0 @Width @Height" preserveAspectRatio="none" role="img"
+     aria-label="@Label" focusable="false">
+    @if (_points.Length > 1)
+    {
+        <polygon class="sparkline-fill" points="@_area" />
+        <polyline class="sparkline-line" points="@_line" />
+        <circle class="sparkline-last" cx="@_lastX.ToString(Invariant)" cy="@_lastY.ToString(Invariant)" r="2.2" />
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<double> Values { get; set; } = [];
+
+    /// <summary>Read out instead of the drawing, which is decoration to a screen reader.</summary>
+    [Parameter] public string Label { get; set; } = "";
+
+    private const int Width = 96;
+    private const int Height = 24;
+
+    /// <summary>Kept clear of the stroke so a peak is not clipped in half.</summary>
+    private const double Padding = 3;
+
+    private static readonly System.Globalization.CultureInfo Invariant =
+        System.Globalization.CultureInfo.InvariantCulture;
+
+    private (double X, double Y)[] _points = [];
+    private string _line = "";
+    private string _area = "";
+    private double _lastX;
+    private double _lastY;
+
+    protected override void OnParametersSet()
+    {
+        _points = Plot();
+        if (_points.Length < 2) return;
+
+        _line = string.Join(" ", _points.Select(Format));
+        (_lastX, _lastY) = _points[^1];
+
+        // Closed back along the baseline so the line has weight behind it at this size.
+        _area = $"{Format((_points[0].X, Height))} {_line} {Format((_lastX, Height))}";
+    }
+
+    private (double X, double Y)[] Plot()
+    {
+        if (Values.Count < 2) return [];
+
+        var min = Values.Min();
+        var max = Values.Max();
+        var span = max - min;
+
+        var step = (Width - Padding * 2) / (Values.Count - 1);
+
+        return Values.Select((value, i) =>
+        {
+            // A flat run has no range to scale against, and dividing by it would put every point
+            // at the top. Sitting it on the midline says "steady" rather than "off the chart".
+            var fraction = span > 0 ? (value - min) / span : 0.5;
+            return (Padding + step * i, Height - Padding - fraction * (Height - Padding * 2));
+        }).ToArray();
+    }
+
+    private static string Format((double X, double Y) point) =>
+        $"{point.X.ToString("0.##", Invariant)},{point.Y.ToString("0.##", Invariant)}";
+}
