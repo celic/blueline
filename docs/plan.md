@@ -590,10 +590,11 @@ appear without a manual run.
   throws at render time when the browser is asked to `setAttribute` on a name that is a paragraph of
   English; it took the circuit down on every trend page.
 
-  Still open: **chart data points are not keyboard reachable.** Chart.js tooltips are pointer-only.
-  The player and goalie pages carry a game log table beside the chart, which is the same data in an
-  accessible form, but the team page has no table at all — so a team's game-by-game figures are
-  currently unavailable to a keyboard or screen reader beyond the summary sentence.
+  **Chart.js tooltips remain pointer-only**, which is not something to fix in Chart.js: the answer
+  is that every chart now has the same numbers beside it as a table. The team page was the one
+  without, so a club's game-by-game figures were reachable only with a mouse; it has a game log now,
+  matching the player and goalie pages. Verified against Edmonton's season — 82 rows, newest first,
+  standings points per game beside the running total.
 - **Team colours in charts.** The palette is four fixed colours. Team pages could use each club's
   own colour.
 - **Empty and error states.** Pages handle "no data" but not "the query failed".

@@ -97,30 +97,68 @@ else
         </div>
     }
 
-    <div class="card">
-        <div class="stat-row">
-            <div>
-                <div class="value">@_series.Total.ToString("0")</div>
-                <div class="label">Total @_series.StatLabel.ToLowerInvariant()</div>
+    <div class="grid-2" style="margin-top:1.25rem">
+        <div class="card">
+            <div class="stat-row">
+                <div>
+                    <div class="value">@_series.Total.ToString("0")</div>
+                    <div class="label">Total @_series.StatLabel.ToLowerInvariant()</div>
+                </div>
+                <div>
+                    <div class="value">@_series.PerGame.ToString("F2")</div>
+                    <div class="label">Per game</div>
+                </div>
+                <div>
+                    <div class="value">@_record</div>
+                    <div class="label">Record</div>
+                </div>
             </div>
-            <div>
-                <div class="value">@_series.PerGame.ToString("F2")</div>
-                <div class="label">Per game</div>
-            </div>
-            <div>
-                <div class="value">@_record</div>
-                <div class="label">Record</div>
+            @if (_stat == "points" && !_scope.HasStandingsPoints())
+            {
+                <p class="muted">
+                    Standings points are a regular-season concept — playoff games award none, so this
+                    line flattens wherever the playoffs begin. Switch the games filter to the regular
+                    season, or pick another stat.
+                </p>
+            }
+            <TrendChart Spec="_spec" @key="_chartKey" />
+        </div>
+
+        @*
+            The same data as the chart, in a form a keyboard and a screen reader can reach. Chart.js
+            tooltips answer only to a pointer, so without this the club's game-by-game figures were
+            available to nobody who could not use one — the player and goalie pages have had this
+            table all along.
+        *@
+        <div class="card">
+            <h2>Game log</h2>
+            <div class="table-scroll" style="max-height:420px; overflow-y:auto">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col" class="rank">#</th>
+                            <th scope="col">Date</th>
+                            <th scope="col">Opp</th>
+                            <th scope="col" class="num">@(StatDefinition.FindTeam(_stat)?.Unit)</th>
+                            <th scope="col" class="num">Tot</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @* Newest first: the last game played is the one being looked for. *@
+                        @foreach (var point in _series.Points.AsEnumerable().Reverse())
+                        {
+                            <tr>
+                                <td class="rank">@point.GameNumber</td>
+                                <td class="muted">@point.Date.ToString("MMM d")</td>
+                                <td>@(point.IsHome ? "vs" : "@") @point.Opponent</td>
+                                <td class="num">@point.Value.ToString("0.##")</td>
+                                <td class="num muted">@point.Cumulative.ToString("0.##")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
         </div>
-        @if (_stat == "points" && !_scope.HasStandingsPoints())
-        {
-            <p class="muted">
-                Standings points are a regular-season concept — playoff games award none, so this
-                line flattens wherever the playoffs begin. Switch the games filter to the regular
-                season, or pick another stat.
-            </p>
-        }
-        <TrendChart Spec="_spec" @key="_chartKey" />
     </div>
 }
 
