@@ -585,7 +585,7 @@ appear without a manual run.
   it. Group 6 raises the stakes: a dashboard of streaks is many aggregations per page load, not one.
 - **Mobile.** Best-effort, per question 8. The CSS has responsive breakpoints but has only been
   checked at desktop width. Fix it if it looks broken; do not treat phones as a first-class target.
-- **Accessibility — `done`, with one gap left.** Compared subjects now carry a shape as well as a
+- **Accessibility — `done`.** Compared subjects now carry a shape as well as a
   colour: a circle, triangle, square, diamond, star or cross, drawn on the line every tenth point,
   repeated in the legend, and repeated again on the comparison chip — so the same mark identifies a
   subject everywhere it appears. Markers are switched on only for multi-subject charts, where colour
@@ -616,7 +616,26 @@ appear without a manual run.
   standings points per game beside the running total.
 - **Team colours in charts.** The palette is four fixed colours. Team pages could use each club's
   own colour.
-- **Empty and error states.** Pages handle "no data" but not "the query failed".
+- **Empty and error states — `done`.** Pages handled "no data" carefully and "the query failed" not
+  at all: an exception during a load took the circuit down and left the reader with Blazor's yellow
+  strip and a page that no longer answered. An `ErrorBoundary` around the page body now keeps the
+  failure inside the page — an explanation, a Try again that re-runs the load, and a link to the
+  Data page — while the exception still reaches the server log in full through
+  `IErrorBoundaryLogger`. The boundary is recovered on navigation, without which one failed page
+  would blank every page visited after it.
+
+  **A failing API call now answers in the format its caller asked for.** It returned the `/Error`
+  page's HTML with its 500, which is unreadable to anything expecting JSON. Ordering turned out to
+  be the whole of it: the ProblemDetails handler has to be registered *after* the page handler, so
+  that it sits inside it and sees an `/api` exception first. Registered the other way round — which
+  is how it was written first, and how it looked correct — the page handler catches everything and
+  the branch never runs. Measured in a Production build with a temporary throwing endpoint:
+  `application/problem+json`, status 500, a traceId to match against the log, and no stack trace.
+
+  **The failure state is exercised rather than assumed.** `/dev/throw` is a page that does nothing
+  but fail, and redirects to the not-found page outside Development — verified, it answers 302 in a
+  Production build. Two UI tests cover it: the fallback appears with Blazor's strip staying hidden,
+  and navigating away afterwards lands on a working page.
 
 ---
 

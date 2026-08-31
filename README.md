@@ -363,6 +363,9 @@ Every stat endpoint also takes `?scope=RegularSeason|Playoffs`; an unrecognised 
 back to the regular season rather than erroring, so a stale bookmark still renders — including
 `?scope=All`, which earlier builds accepted.
 
+A failed request answers with `application/problem+json` — status, title and a trace id matching
+the server log, and no stack trace.
+
 `season` defaults to the most recent season stored. An OpenAPI document is served at
 `/openapi/v1.json` in development.
 

@@ -18,7 +18,32 @@
 </header>
 
 <main class="page" id="content" tabindex="-1">
-    @Body
+    @*
+        The pages handle "no data" carefully and handled "the query failed" not at all: an
+        exception during a load took the circuit down and left the reader with Blazor's yellow
+        strip and a page that no longer answers. This keeps the failure inside the page, where it
+        can be explained and retried.
+
+        The boundary logs through IErrorBoundaryLogger, so the exception still reaches the server
+        log in full — it simply does not reach the visitor.
+    *@
+    <ErrorBoundary @ref="_boundary">
+        <ChildContent>@Body</ChildContent>
+        <ErrorContent>
+            <div class="error-state">
+                <h2>This page could not be loaded</h2>
+                <p class="muted">
+                    Something went wrong reading the data. Nothing has been changed, and the rest
+                    of the site is unaffected.
+                </p>
+                <p>
+                    <button class="link" @onclick="Retry">Try again</button>
+                    <span class="muted"> · </span>
+                    <a href="/data">Check the data status</a>
+                </p>
+            </div>
+        </ErrorContent>
+    </ErrorBoundary>
 </main>
 
 <div id="blazor-error-ui" data-nosnippet>
@@ -26,3 +51,19 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private ErrorBoundary? _boundary;
+
+    /// <summary>
+    /// Clears the error on navigation. Without this the boundary stays broken for the rest of the
+    /// session, so one failed page would take every later page down with it.
+    /// </summary>
+    protected override void OnParametersSet() => _boundary?.Recover();
+
+    /// <summary>
+    /// Recovering re-renders the page from scratch, which runs its load again — so this is a real
+    /// retry rather than a way of hiding the message.
+    /// </summary>
+    private void Retry() => _boundary?.Recover();
+}

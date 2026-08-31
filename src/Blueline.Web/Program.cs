@@ -3,6 +3,7 @@ using Blueline.Ingestion;
 using Blueline.Web.Api;
 using Blueline.Web.Components;
 using Blueline.Web.Health;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,6 +16,10 @@ builder.Services.AddRazorComponents()
 builder.Services.AddBluelineCore(builder.Configuration);
 builder.Services.AddBluelineDailyIngestion();
 builder.Services.AddOpenApi();
+
+// So a failed API call answers in the format its caller asked for. Without this the exception
+// handler below re-executes the /Error page, and a JSON client gets a page of HTML with its 500.
+builder.Services.AddProblemDetails();
 builder.Services.AddBluelineHealthChecks();
 
 // Per-call HTTP and SQL logs would drown out everything else during a backfill.
@@ -54,6 +59,15 @@ using (var scope = app.Services.CreateScope())
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
+
+    // Registered after the page handler, and therefore inside it: whichever handler is innermost
+    // sees the exception first, so an API call is answered here and never reaches the one that
+    // re-executes an HTML page. With no path or handler configured this writes a ProblemDetails
+    // body, which is what a caller of /api can actually read.
+    app.UseWhen(
+        context => context.Request.Path.StartsWithSegments("/api"),
+        api => api.UseExceptionHandler(new ExceptionHandlerOptions()));
+
     app.UseHsts();
 }
 else

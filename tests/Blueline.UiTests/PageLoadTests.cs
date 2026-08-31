@@ -70,6 +70,38 @@ public class PageLoadTests : BluelinePageTest
     }
 
     [Test]
+    public async Task A_page_that_fails_explains_itself_instead_of_killing_the_session()
+    {
+        // /dev/throw exists only in Development and does nothing but fail, so the state a reader
+        // meets on the worst day the site has is something that has actually been looked at.
+        await GoToAsync("/dev/throw");
+
+        await Expect(Page.Locator(".error-state h2")).ToHaveTextAsync("This page could not be loaded");
+        await Expect(Page.GetByRole(AriaRole.Button, new() { Name = "Try again" })).ToBeVisibleAsync();
+
+        // Blazor's own error strip is what this replaces; it must stay hidden.
+        await Expect(Page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
+
+        // No console assertion here: the handled exception is reported to the browser by design.
+    }
+
+    [Test]
+    public async Task One_broken_page_does_not_take_the_rest_of_the_site_with_it()
+    {
+        await GoToAsync("/dev/throw");
+        await Expect(Page.Locator(".error-state")).ToBeVisibleAsync();
+
+        await Page.GetByRole(AriaRole.Link, new() { Name = "Leaders", Exact = true }).ClickAsync();
+
+        // The boundary is reset on navigation. Without that it stays broken for the rest of the
+        // session, and one bad page would blank every page visited afterwards.
+        await Expect(Page.Locator("h1")).ToHaveTextAsync("Season leaders");
+        await Expect(Page.Locator(".error-state")).Not.ToBeVisibleAsync();
+        await Expect(Page.GetByRole(AriaRole.Link, new() { Name = BluelineAppFixture.Seed.TopScorerName }))
+            .ToBeVisibleAsync();
+    }
+
+    [Test]
     public async Task A_season_with_no_data_shows_an_empty_state_rather_than_an_error()
     {
         await GoToAsync($"/players/{BluelineAppFixture.Seed.TopScorerId}?season=19992000");
