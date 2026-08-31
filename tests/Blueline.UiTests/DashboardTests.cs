@@ -82,6 +82,18 @@ public class DashboardTests : BluelinePageTest
     }
 
     [Test]
+    public async Task With_one_season_stored_there_is_no_season_to_choose()
+    {
+        // The fixture holds a single season, and a dropdown of one is a control that cannot do
+        // anything. Every other page shows one unconditionally; this is the page where a reader
+        // arrives first, so it earns the restraint.
+        await GoToAsync("/");
+
+        await Expect(Page.Locator("#season")).ToHaveCountAsync(0);
+        AssertNoConsoleErrors();
+    }
+
+    [Test]
     public async Task A_row_links_through_to_the_trend_that_produced_it()
     {
         await GoToAsync("/");

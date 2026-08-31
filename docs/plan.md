@@ -101,10 +101,11 @@ Four of the five gaps are closed.
   de-duplicated, unparseable entries dropped rather than failing the request, and the list capped
   at what a chart can carry.
 
-Still open: **cross-season comparison**. Comparisons re-fetch using the page's season, so a player
-cannot be charted against their own earlier year. "McDavid at 24 against McDavid at 22" is a
-genuinely different question — each series needs to carry its own season, and the x axis has to
-decide whether it aligns by game number or by age. Worth its own item if wanted.
+**Cross-season comparison is not wanted** — asked and answered. Charting a player against their own
+earlier year would have meant each series carrying its own season and the x axis deciding whether it
+aligns by game number or by age; the answer is that looking at one player across seasons is not the
+job. Picking a season and reading it whole is, which every page including the dashboard now allows.
+Closed rather than carried.
 
 ### 1.4 Offer a date x axis as well as game number — `done`
 
@@ -689,6 +690,24 @@ the past two weeks — and be graphically dense, with charts and comparisons, ch
 Leaders moves off the home page to a page of its own.
 
 Sequenced so each step is useful on its own.
+
+### 6.5 A season picker on the dashboard — `done`
+
+Every other page had one; the dashboard took the newest season and gave no way to ask about the
+other. It has one now, so the streak panels, the freshness notice and the footer date all follow the
+season chosen — picking 2024-25 reads "The 2024-25 season is over. The last game was 16 months ago",
+with that season's runs beneath it.
+
+Two details:
+
+- **The control appears only when there is more than one season stored.** A dropdown of one is a
+  control that cannot do anything, and this is the page a reader arrives at first.
+- **The panel links carry the season**, so a row read under 2024-25 lands on that season's trend
+  rather than silently on the newest.
+
+The footer was reworded while it was open. "Windows end on 17 April 2025 — 2,792 games across 2
+seasons" reads as though 2,792 games ended that April; the date belongs to the season being shown
+and the count to the database, so they are now two sentences.
 
 ### 6.1 Move Leaders off `/` — `done`
 
