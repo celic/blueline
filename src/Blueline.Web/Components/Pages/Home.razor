@@ -37,6 +37,23 @@ else if (_boards.Count == 0)
 }
 else
 {
+    @if (_seasons.Count > 1)
+    {
+        @* Only where there is a choice to make. With one season stored the control would be a
+           dropdown of one, which says nothing and invites a click that changes nothing. *@
+        <div class="controls">
+            <div class="field">
+                <label for="season">Season</label>
+                <select id="season" value="@_seasonId" @onchange="OnSeasonChanged" disabled="@_loadingBoards">
+                    @foreach (var season in _seasons)
+                    {
+                        <option value="@season.SeasonId">@season.Label</option>
+                    }
+                </select>
+            </div>
+        </div>
+    }
+
     @if (_freshness != SeasonFreshness.Current)
     {
         @* A trailing window says nothing about its own age, so the page has to. *@
@@ -100,6 +117,7 @@ else
                                         </span>
                                     </span>
                                     <Sparkline Values="leader.Recent"
+                                               Colour="@TeamColours.For(leader.TeamAbbrev)"
                                                Label="@($"{leader.SubjectName}, {board.StatLabel.ToLowerInvariant()} over the {board.WindowLabel}")" />
                                     <span class="streak-lift">@Lift(board, leader)</span>
                                 </a>
@@ -113,8 +131,11 @@ else
 
     <div class="card" style="margin-top:1.25rem">
         <p class="muted" style="margin:0">
-            Windows end on @_asOf!.Value.ToString("d MMMM yyyy"), the most recent game stored —
-            @_gamesStored.ToString("N0") games across
+            @* The date belongs to the season being shown; the count belongs to the database. Said
+               separately, because one sentence covering both reads as though 2,792 games ended in
+               April 2025. *@
+            Windows end on @_asOf!.Value.ToString("d MMMM yyyy"), the most recent game of @_seasonLabel.
+            @_gamesStored.ToString("N0") games stored across
             @(_seasons.Count == 1 ? "one season" : $"{_seasons.Count} seasons").
             <a href="/data">Where the data came from</a>.
         </p>
@@ -151,6 +172,8 @@ else
 
     private readonly List<StreakBoard> _boards = [];
     private IReadOnlyList<SeasonSummary> _seasons = [];
+    private int _seasonId;
+    private bool _loadingBoards;
     private DateOnly? _asOf;
     private int _gamesStored;
     private bool _loading = true;
@@ -178,9 +201,36 @@ else
             return;
         }
 
-        var seasonId = _seasons[0].SeasonId;
-        _seasonLabel = _seasons[0].Label;
+        _seasonId = _seasons[0].SeasonId;
+        await LoadBoardsAsync();
+        _loading = false;
+    }
+
+    private async Task OnSeasonChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var seasonId) || seasonId == _seasonId) return;
+
+        _seasonId = seasonId;
+        _loadingBoards = true;
+
+        await LoadBoardsAsync();
+
+        _loadingBoards = false;
+    }
+
+    /// <summary>
+    /// The panels for whichever season is chosen, and how current that season's last game is.
+    /// A past season is expected to read as finished — that is the point of being able to pick one.
+    /// </summary>
+    private async Task LoadBoardsAsync()
+    {
+        var seasonId = _seasonId;
+        _seasonLabel = _seasons.First(s => s.SeasonId == seasonId).Label;
         var scope = Display.Value.DefaultGameScope;
+
+        _boards.Clear();
+        _freshness = SeasonFreshness.Current;
+        _collectionIsCurrent = true;
 
         foreach (var (stat, window) in Panels)
         {
@@ -208,17 +258,16 @@ else
             }
         }
 
-        _loading = false;
     }
 
     /// <summary>
     /// Through to the trend that produced the run, on the same stat and window the panel used, so
     /// the chart on the other side is the one the reader was just looking at.
     /// </summary>
-    private static string Link(StreakBoard board, StreakLeader leader) =>
+    private string Link(StreakBoard board, StreakLeader leader) =>
         board.IsRate
-            ? $"/goalies/{leader.SubjectId}?stat={board.Stat}&window={Token(board)}"
-            : $"/players/{leader.SubjectId}?stat={board.Stat}&window={Token(board)}";
+            ? $"/goalies/{leader.SubjectId}?season={_seasonId}&stat={board.Stat}&window={Token(board)}"
+            : $"/players/{leader.SubjectId}?season={_seasonId}&stat={board.Stat}&window={Token(board)}";
 
     private static string Token(StreakBoard board) =>
         board.WindowUnit == WindowUnit.Days ? $"{board.Window}d" : $"{board.Window}g";

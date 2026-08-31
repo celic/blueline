@@ -22,6 +22,11 @@ public static class ServiceCollectionExtensions
             .UseSqlite(connectionString)
             // Without this, the background ingestion job's writes block page reads.
             .AddInterceptors(new SqliteConnectionInterceptor()));
+        // Singleton, because a cache that lives as long as the request it serves is not a cache.
+        // Its version token comes from the scoped DbContext handed to it per call, so it holds no
+        // database state of its own.
+        services.AddSingleton<QueryCache>();
+
         services.AddScoped<StatsQueryService>();
         services.AddScoped<StreaksQueryService>();
         services.AddScoped<SeasonArchive>();

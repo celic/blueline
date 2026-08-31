@@ -58,7 +58,13 @@ EXPOSE 8080
 # Deliberately liveness, not readiness. A first run spends several minutes
 # loading a season, during which readiness correctly reports "not yet" — probing
 # that here would kill the container mid-load and start it over, forever.
+#
+# Asserts 200 rather than leaning on curl --fail, which only treats 400 and above
+# as failure. A redirect satisfies --fail: measured against the running app, a
+# build configured with an HTTPS port answers this probe with 307 to
+# https://localhost:8443/health, the old check passed, and the container would
+# have reported itself healthy on a reply that never reached the endpoint.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl --fail --silent http://localhost:8080/health || exit 1
+    CMD test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:8080/health)" = "200" || exit 1
 
 ENTRYPOINT ["dotnet", "Blueline.Web.dll"]

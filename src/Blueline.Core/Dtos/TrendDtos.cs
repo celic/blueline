@@ -30,7 +30,13 @@ public record TrendSeries(
     int RollingWindow,
     IReadOnlyList<TrendPoint> Points,
     bool IsRate = false,
-    WindowUnit RollingWindowUnit = WindowUnit.Games)
+    WindowUnit RollingWindowUnit = WindowUnit.Games,
+    /// <summary>
+    /// The club this series belongs to, so a chart can draw it in that club's colour. For a player
+    /// it is the club they played most of the season for, which is the only sense in which a
+    /// traded player has one club.
+    /// </summary>
+    string? TeamAbbrev = null)
 {
     /// <summary>
     /// For a counting stat this is the season total. For a rate it is the season rate — the

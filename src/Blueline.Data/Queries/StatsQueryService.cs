@@ -13,9 +13,20 @@ namespace Blueline.Data.Queries;
 /// the maths identical across database providers. Season-wide aggregates, which do touch tens
 /// of thousands of rows, stay in SQL.
 /// </summary>
-public class StatsQueryService(BluelineDbContext db)
+/// <param name="cache">
+/// Optional, and null in tests that construct this directly — the uncached path is the one every
+/// query test wants, and a cache would have them asserting on figures they did not just write.
+/// </param>
+public class StatsQueryService(BluelineDbContext db, QueryCache? cache = null)
 {
-    public async Task<IReadOnlyList<SeasonSummary>> GetSeasonsAsync(CancellationToken ct = default)
+    /// <summary>Runs a query through the cache when there is one, and straight through when there is not.</summary>
+    private Task<T> CachedAsync<T>(string key, Func<Task<T>> load, CancellationToken ct) =>
+        cache is null ? load() : cache.GetOrCreateAsync(db, key, load, ct);
+
+    public Task<IReadOnlyList<SeasonSummary>> GetSeasonsAsync(CancellationToken ct = default) =>
+        CachedAsync("seasons", () => SeasonsAsync(ct), ct);
+
+    private async Task<IReadOnlyList<SeasonSummary>> SeasonsAsync(CancellationToken ct)
     {
         var rows = await db.Games
             .GroupBy(g => g.SeasonId)
@@ -257,13 +268,19 @@ public class StatsQueryService(BluelineDbContext db)
             }).ToList(),
             window);
 
+        var club = await GetGoaliePrimaryTeamsAsync(seasonId, [playerId], scope, ct);
+
         return new TrendSeries(
             player.FullName, playerId, definition.Key, definition.Label, seasonId, window.Size,
-            points, definition.IsRate, window.Unit);
+            points, definition.IsRate, window.Unit, club.GetValueOrDefault(playerId));
     }
 
-    public async Task<IReadOnlyList<TeamSummary>> GetTeamsAsync(
-        int seasonId, GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
+    public Task<IReadOnlyList<TeamSummary>> GetTeamsAsync(
+        int seasonId, GameScope scope = GameScope.RegularSeason, CancellationToken ct = default) =>
+        CachedAsync($"teams|{seasonId}|{scope}", () => TeamsAsync(seasonId, scope, ct), ct);
+
+    private async Task<IReadOnlyList<TeamSummary>> TeamsAsync(
+        int seasonId, GameScope scope, CancellationToken ct)
     {
         var types = scope.GameTypes();
         var rows = await db.TeamGameStats
@@ -328,9 +345,11 @@ public class StatsQueryService(BluelineDbContext db)
                 r.GameId, r.GameDate, r.IsHome, r.Opponent, SkaterValue(r.Stat, definition.Key))).ToList(),
             window);
 
+        var club = await GetPrimaryTeamAbbrevsAsync(seasonId, [playerId], scope, ct);
+
         return new TrendSeries(
             player.FullName, playerId, definition.Key, definition.Label, seasonId, window.Size, points,
-            RollingWindowUnit: window.Unit);
+            RollingWindowUnit: window.Unit, TeamAbbrev: club.GetValueOrDefault(playerId));
     }
 
     public async Task<TrendSeries?> GetTeamTrendAsync(
@@ -379,12 +398,16 @@ public class StatsQueryService(BluelineDbContext db)
 
         return new TrendSeries(
             team.Name, teamId, definition.Key, definition.Label, seasonId, window.Size, points,
-            RollingWindowUnit: window.Unit);
+            RollingWindowUnit: window.Unit, TeamAbbrev: team.Abbrev);
     }
 
-    public async Task<IReadOnlyList<LeaderRow>> GetLeadersAsync(
+    public Task<IReadOnlyList<LeaderRow>> GetLeadersAsync(
         int seasonId, string stat, int take = 20,
-        GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
+        GameScope scope = GameScope.RegularSeason, CancellationToken ct = default) =>
+        CachedAsync($"leaders|{seasonId}|{stat}|{take}|{scope}", () => LeadersAsync(seasonId, stat, take, scope, ct), ct);
+
+    private async Task<IReadOnlyList<LeaderRow>> LeadersAsync(
+        int seasonId, string stat, int take, GameScope scope, CancellationToken ct)
     {
         var definition = StatDefinition.FindSkater(stat);
         if (definition is null) return [];

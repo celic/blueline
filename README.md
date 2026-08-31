@@ -80,11 +80,19 @@ Tests:
 dotnet test tests/Blueline.Tests
 ```
 
-Browser tests drive the real site through Playwright. They need the browser downloaded once:
+Browser tests drive the real site through Playwright:
 
 ```bash
-tests/Blueline.UiTests/bin/Debug/net10.0/playwright.ps1 install chromium
+dotnet test tests/Blueline.UiTests
 ```
+
+The browser downloads itself on the first run — a few hundred MB into a per-user cache outside the
+repository, and a no-op on every run after. Set `BLUELINE_SKIP_PLAYWRIGHT_INSTALL` where that
+download is unwanted, such as a build that provisions the cache itself.
+
+Playwright also ships `playwright.ps1` for installing browsers by hand, but it is a PowerShell
+script and Windows blocks unsigned scripts by default — `running scripts is disabled on this
+system`. That is why the download happens from the test fixture instead, which needs no shell.
 
 ## Running it in Docker
 
@@ -92,7 +100,9 @@ tests/Blueline.UiTests/bin/Debug/net10.0/playwright.ps1 install chromium
 docker compose up --build
 ```
 
-The site is then on `http://localhost:8080`.
+The site is then on `http://localhost:8080`. For running it in earnest — the volume that must
+persist, backups, upgrades, what to watch, and how to recover — see
+**[the deployment runbook](docs/runbook.md)**.
 
 The image publishes the site and the CLI side by side, so one image runs either. That is what
 lets you seed, reconcile or inspect the very same volume the site is using:
@@ -100,6 +110,16 @@ lets you seed, reconcile or inspect the very same volume the site is using:
 ```bash
 docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll status
 ```
+
+**`--entrypoint dotnet` is not optional.** The image's entrypoint is the site, so arguments given
+without it are appended to that command rather than replacing it: `docker run … blueline dotnet
+Blueline.Cli.dll status` starts a *second web server* against the same volume and sits there. It
+does not fail, which is what makes it worth knowing.
+
+**Do not push an image built with archives present to a public registry.** The build copies
+whatever is in `seed/`, so an image built after `build-seasons.ps1` carries a couple of MB of the
+league's statistics — which is the point when the deployment is yours, and a publication when the
+registry is not.
 
 ### How data gets into the database
 
@@ -196,6 +216,17 @@ docker compose run --rm --entrypoint dotnet blueline Blueline.Cli.dll reconcile 
 | `Blueline__UseForwardedHeaders` | Set `true` behind a proxy that terminates TLS, so the app sees the original scheme and client address. Off by default, since trusting those headers with nothing in front would let a caller spoof them |
 | `Ingestion__SeedSeasonId` | `0` disables self-seeding |
 | `Ingestion__DailyJobEnabled` | `true` moves the daily schedule into the site, instead of a job outside it |
+| `ASPNETCORE_HTTPS_PORT` | **Leave unset.** Setting it makes the app redirect plain HTTP to that port, including the container's own health probe — see below |
+
+**TLS terminates in front of the container, and nothing inside it should know an HTTPS port.**
+`UseHttpsRedirection` decides whether to redirect from the HTTPS port it can find — a configured
+`ASPNETCORE_HTTPS_PORT`, or an HTTPS address the server is listening on. The image sets neither, so
+it never redirects, which is what lets the health probe and a proxied request both work. Measured
+against the running app: with no HTTPS port, `GET /health` returns 200 whether or not the request
+carries `X-Forwarded-Proto: https`; set `ASPNETCORE_HTTPS_PORT=8443` and the same plain request
+becomes `307 → https://localhost:8443/health`. Real traffic through a TLS proxy still succeeds,
+because forwarded headers mark it as already secure — it is the probe, arriving locally without
+them, that gets redirected.
 
 Blazor Server holds a WebSocket per visitor, so the host must allow long-lived connections. Past a
 single instance it would need sticky sessions or a Redis backplane; one instance is assumed here.
@@ -351,6 +382,9 @@ The response reports which unit it used as `rollingWindowUnit`.
 Every stat endpoint also takes `?scope=RegularSeason|Playoffs`; an unrecognised value falls
 back to the regular season rather than erroring, so a stale bookmark still renders — including
 `?scope=All`, which earlier builds accepted.
+
+A failed request answers with `application/problem+json` — status, title and a trace id matching
+the server log, and no stack trace.
 
 `season` defaults to the most recent season stored. An OpenAPI document is served at
 `/openapi/v1.json` in development.

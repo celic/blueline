@@ -48,6 +48,26 @@ public class ComparisonTests : BluelinePageTest
     }
 
     [Test]
+    public async Task A_chip_is_drawn_in_the_colour_its_line_was_drawn_in()
+    {
+        // The chart picks colours now — a club's own where it is recognisable and distinct, the
+        // palette otherwise — so a chip that assumed the palette would name a line in a colour that
+        // line is not. The invariant holds whichever branch was taken.
+        await GoToAsync(PlayerUrl);
+        await WaitForChartAsync();
+
+        await Page.Locator(".compare-picker input").FillAsync(BluelineAppFixture.Seed.GrinderName[..5]);
+        await Page.Locator(".compare-results button").First.ClickAsync();
+        await WaitForChartAsync("chart.data.datasets.length === 2");
+
+        var lineColour = await ReadChartAsync<string>("chart.data.datasets[1].borderColor");
+        var chipStyle = await Page.Locator(".chip .swatch").GetAttributeAsync("style");
+
+        Assert.That(chipStyle, Does.Contain(lineColour).IgnoreCase);
+        AssertNoConsoleErrors();
+    }
+
+    [Test]
     public async Task Removing_a_comparison_drops_its_chip_and_its_series()
     {
         await GoToAsync(PlayerUrl);

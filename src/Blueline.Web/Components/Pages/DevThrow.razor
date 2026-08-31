@@ -1,0 +1,28 @@
+@page "/dev/throw"
+@rendermode InteractiveServer
+@inject IWebHostEnvironment Env
+@inject NavigationManager Nav
+
+@*
+    A page that fails on purpose, so the error boundary can be exercised rather than assumed.
+
+    An error state nobody has seen is a guess about what happens on the worst day the site has.
+    Outside Development this route does not exist — it redirects to the not-found page — so the
+    only thing it can be used for is looking at the fallback and testing it.
+*@
+
+<PageTitle>Deliberate failure — Blueline</PageTitle>
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (!Env.IsDevelopment())
+        {
+            Nav.NavigateTo("/not-found", replace: true);
+            return;
+        }
+
+        throw new InvalidOperationException(
+            "Deliberate failure from /dev/throw, for exercising the error boundary.");
+    }
+}

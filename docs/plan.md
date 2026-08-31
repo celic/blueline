@@ -9,8 +9,8 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 from 1.6, and what remains is mostly one piece of work:
 
 - **The home page is a streaks dashboard** — group 6, complete.
-- **Deployment is waiting on things outside the repository** — 3.2 needs a Docker daemon, 3.3 needs
-  3.2, and 4.3 needs the 2026-27 season to open on 2026-09-29.
+- **Deployment**: the image is built and verified (3.2) and the runbook is written from what was
+  actually run (3.3). Only 4.3 remains, waiting for the 2026-27 season to open on 2026-09-29.
 
 Both questions raised by the last revision are now answered. **Question 10 confirms 2.6 as built**:
 the schedule runs on the same host as a separate process, never behind a reachable API. **Question
@@ -101,10 +101,11 @@ Four of the five gaps are closed.
   de-duplicated, unparseable entries dropped rather than failing the request, and the list capped
   at what a chart can carry.
 
-Still open: **cross-season comparison**. Comparisons re-fetch using the page's season, so a player
-cannot be charted against their own earlier year. "McDavid at 24 against McDavid at 22" is a
-genuinely different question — each series needs to carry its own season, and the x axis has to
-decide whether it aligns by game number or by age. Worth its own item if wanted.
+**Cross-season comparison is not wanted** — asked and answered. Charting a player against their own
+earlier year would have meant each series carrying its own season and the x axis deciding whether it
+aligns by game number or by age; the answer is that looking at one player across seasons is not the
+job. Picking a season and reading it whole is, which every page including the dashboard now allows.
+Closed rather than carried.
 
 ### 1.4 Offer a date x axis as well as game number — `done`
 
@@ -342,7 +343,18 @@ not hypothetical: a render bug that took down the circuit on every trend page su
 this way. Verified by reintroducing the bug — with a project reference added, seven tests fail; without it, all seven pass. The reference is
 `ReferenceOutputAssembly="false"`, since it exists to order the build rather than to be used.
 
-Note for CI: `playwright.ps1 install chromium` must run once, and it downloads roughly 300 MB.
+**Getting the browser was itself a trap, fixed later.** The note here used to say to run
+`playwright.ps1 install chromium` once. Two things were wrong with it. Windows blocks unsigned
+PowerShell scripts by default, so on this machine that command answers `running scripts is disabled
+on this system` and installs nothing; and chromium and its headless shell are separate downloads,
+where a headless run needs the shell. What a developer saw instead was `Executable doesn't exist at
+...chrome-headless-shell.exe`, which names a file rather than a cause.
+
+The fixture now installs both browsers itself before the run, through Playwright's own driver rather
+than a shell script. It is a no-op once they are present, costing a second or so against a first-run
+download of a few hundred MB, and `BLUELINE_SKIP_PLAYWRIGHT_INSTALL` opts out. Verified against an
+empty cache — `PLAYWRIGHT_BROWSERS_PATH` pointed at a fresh directory, the run downloaded both
+browsers and passed.
 
 ### 2.6 Remove the ingestion trigger, and move the schedule outside the app — `done`
 
@@ -444,61 +456,69 @@ release. That was dropped once the repository became public: the data is only ne
 environment, and bulk redistribution of the league's statistics is a question better avoided than
 answered. The fetch script was removed with it.
 
-### 3.2 Verify the image — `todo`
+### 3.2 Verify the image — `done`
 
-**The host question is closed**: question 5 answered that the Dockerfile is the run tool for now, so
-there is no provider to choose, no free-tier terms to check and no domain to buy. What remains is
-the part of 3.1 that could not be finished — the image has never been built, because no Docker
-daemon was available on this machine.
+Docker runs on this machine now, and the image has been built and exercised. What blocked it was
+never Docker: virtualization was disabled in the firmware, so no hypervisor could start, WSL had no
+distribution registered, and Docker Desktop's VM never came up — the engine answered 500 through
+every pipe. `systeminfo` said it in one line, `Virtualization Enabled In Firmware: No`, which is
+where this should have been checked first rather than after two restarts and a reinstall theory.
 
-Three things to confirm on a machine that has one, all of which fail at run time rather than build
-time and so are invisible until then:
+All three checks pass:
 
-- **The image builds**, and both the site and the CLI run from it.
-- **The non-root `app` user can write to a mounted volume.** A host-mounted directory arrives owned
-  by the host's user; if it does not, the app cannot create its database and the failure surfaces as
-  a boot crash rather than a permissions message.
-- **`UseHttpsRedirection` behind a TLS-terminating proxy**, flagged at the end of 2.4. It works
-  today only because no HTTPS port is configured in the container.
+- **The image builds**, and both the site and the CLI run from it. The site answers `/` and
+  `/health` on the published port; `Blueline.Cli.dll status` reports the database path and its
+  contents against the same volume.
+- **The non-root `app` user (uid 1654) can write to a mounted volume** — a named volume and a bind
+  mount both, with `blueline.db` and its WAL sidecars owned by `app`. On Docker Desktop a bind mount
+  arrives `drwxrwxrwx`, so this says nothing about a Linux host, where the directory carries the
+  host's ownership and may still need chowning. The Dockerfile already says so.
+- **`UseHttpsRedirection` behaves as measured outside the container.** The container log carries
+  `Failed to determine the https port for redirect`, which is the mechanism: no HTTPS port is
+  configured, so nothing redirects and the probe reaches the endpoint.
 
-Free-tier hosting stays a live constraint on the design even though no host is being picked — the
-whole reason this is one container and one small volume.
+**The hardened HEALTHCHECK works where it matters.** `docker ps` reported `Up 25 seconds (healthy)`,
+which is the first time that check has run inside a container rather than as a shell command against
+the app.
 
-### 3.3 Write the deployment runbook — `todo`
+Two findings that only a real build could produce:
 
-3.1 produces the image and 3.2 confirms it runs; this is the document for actually running it and
-keeping it running. Nothing of the sort exists, so today the only person who could deploy this is
-someone who has read the source.
+- **`docker run … blueline dotnet Blueline.Cli.dll status` silently starts a second web server.**
+  Arguments are appended to the entrypoint rather than replacing it, so the site starts, ignores
+  them, and sits there — and in this case a second writer against the same SQLite volume. The
+  documented form with `--entrypoint dotnet` is correct and now says why it is not optional.
+- **The image carries the season archives** — `/app/seed` holds both, 1.9 MB, because the build
+  copies whatever is in `seed/`. That is deliberate, and it is what let a container come up with
+  2,792 games in seconds. But an image is a distribution artifact, and the archives are meant to
+  stay private, so pushing one built after `build-seasons.ps1` to a public registry publishes them.
+  Excluding `seed/` from the build context was tried and reverted: the Dockerfile copies it on
+  purpose, and the honest fix is the warning rather than a redesign.
 
-Now Docker-specific rather than host-specific, which makes it writable as soon as 3.2 passes. It
-gains one section from 2.6: **how the scheduled ingestion is set up**, since the app will no longer
-do it for itself and a deployment that skips this step goes stale silently — the site keeps serving
-yesterday's data and nothing about it looks broken.
+### 3.3 Write the deployment runbook — `done`
 
-It needs to cover:
+`docs/runbook.md`. **Every procedure in it was run against the real image rather than written from
+the source**, which is what waiting for 3.2 bought:
 
-- **First deploy.** Provision the volume, set `BLUELINE_DATA_DIR` to it, start the container. On
-  an empty database the app seeds a whole season by itself, which takes several minutes of
-  requests before the site has anything to show.
-- **The trap that ruins the free-tier story.** Seeding triggers on an *empty* database. If the
-  volume is not genuinely persistent — an ephemeral container filesystem, a free tier that resets
-  disk on redeploy — every restart re-ingests ~1,400 games. That is slow, hammers the league's
-  API, and looks like the app is merely slow to start. Verifying the volume actually survives a
-  restart is the single most important step, and the runbook should say so first.
-- **Migrations run automatically at startup** (`MigrateAsync` in `Program.cs`). Convenient, but it
-  means a failed migration is a failed boot rather than a degraded service. Say what to do when
-  that happens, and note that rolling the image back does not roll the schema back.
-- **Backups.** Copying `blueline.db` while the app is running is not safe on its own — with
-  write-ahead logging the recent commits live in the `-wal` sidecar. Use `VACUUM INTO` or the
-  SQLite backup API against a live connection. Worth stating plainly, because the naive `cp` looks
-  like it works right up until it doesn't.
-- **Upgrades and rollback.** Replace the image, keep the volume. Schema changes are the asymmetry.
-- **What to watch.** The health endpoint from 2.4, and the ingestion status the Data page already
-  surfaces — including the failed-game counts added in 2.2.
-- **Recovery.** If a stretch of games is missed while the host was asleep, `reconcile` is the fix
-  (2.3). The runbook should name it rather than leaving someone to rediscover it.
+- **First deploy** — an empty volume loaded both archives in seconds and came up healthy with 2,792
+  games.
+- **The volume actually persisting**, which the item called the single most important step. Restart,
+  then confirm the count is unchanged and the log does not say "Database is empty". Verified.
+- **Backups by `export` per season, not `cp`.** Copying the database file while the app runs can
+  miss the `-wal` sidecar and produce something inconsistent. Export reads through the model, so it
+  is consistent and portable. Round trip verified: both seasons exported from a running deployment
+  and imported into an empty volume returned all 2,792 games.
+- **Upgrades** — rebuilt with the volume in place, no re-seed, data intact.
+- **Recovery** by `reconcile` after a missed stretch, and the readiness/liveness split with the real
+  JSON both endpoints return.
 
-Worth writing only once 3.1 and 3.2 are settled, since the specifics depend on the host.
+It also carries the traps found in 3.2 — `--entrypoint dotnet`, not pushing an image built with
+archives, leaving `ASPNETCORE_HTTPS_PORT` unset — and one found while writing it: from Git Bash on
+Windows a `-v` path is rewritten before Docker sees it, and the export fails with
+`Access to the path '/app/C:' is denied` until `MSYS_NO_PATHCONV=1` is set.
+
+**What has not been exercised says so, in its own section.** A failed migration, bind mounts on a
+Linux host (Docker Desktop mounts world-writable, which proves nothing about a host that passes its
+own ownership through), and a live game day.
 
 ---
 
@@ -559,14 +579,34 @@ appear without a manual run.
 
 ## 5. Polish
 
-- **Caching.** `/api/leaders` aggregates ~50,000 rows on every page load. Completed seasons never
-  change, so a memory cache keyed on season + stat would make this free. Question 7 was answered
-  "depends how much sits in cache, needs further discussion", which is the right instinct — so the
-  first move is to **measure** what a season's cached leaders actually weigh rather than argue about
-  it. Group 6 raises the stakes: a dashboard of streaks is many aggregations per page load, not one.
+- **Caching — `done`, aggregates only.** Question 7 asked how much would sit in cache, and
+  measuring settled it: every leaderboard and streak board for both seasons and both scopes is
+  **0.7 MB of JSON**, a few MB in memory, while caching every player's trend would take **0.56 GB**
+  to speed up the cheapest queries in the system — one player, eighty-two rows, no aggregation. The
+  expensive things are small and the big things are cheap, so leaderboards, streak boards and
+  standings are cached and per-subject trends are not.
+
+  | | Before | After |
+  | --- | --- | --- |
+  | Streak board, 10-game window | 64-92 ms | **2-5 ms** |
+  | Leaderboard | 40 ms | **2-3 ms** |
+  | The dashboard, whole page | 235-270 ms | **4-13 ms** |
+
+  **Invalidation could not be told, so it is read.** Ingestion moved out of the web app under 2.6,
+  which means nothing writing to the database can notify a cache living in the site. Every key
+  therefore carries a version token — the newest ingestion run and the newest game — read from the
+  database itself. A nightly run that only revises box scores moves the first; an archive import
+  moves the second; when either moves, every old key is unreachable. The token is held for ten
+  seconds so a page's five panels share one lookup, which is the entire staleness budget.
+
+  One token for the whole database rather than one per season, deliberately. A finished season
+  cannot change, so per-season tokens would survive a nightly run — but they would also mean
+  reasoning about which seasons are finished, and being wrong about that serves stale figures. One
+  token costs a recomputation per stat after each run and cannot be got wrong.
+
 - **Mobile.** Best-effort, per question 8. The CSS has responsive breakpoints but has only been
   checked at desktop width. Fix it if it looks broken; do not treat phones as a first-class target.
-- **Accessibility — `done`, with one gap left.** Compared subjects now carry a shape as well as a
+- **Accessibility — `done`.** Compared subjects now carry a shape as well as a
   colour: a circle, triangle, square, diamond, star or cross, drawn on the line every tenth point,
   repeated in the legend, and repeated again on the comparison chip — so the same mark identifies a
   subject everywhere it appears. Markers are switched on only for multi-subject charts, where colour
@@ -590,13 +630,54 @@ appear without a manual run.
   throws at render time when the browser is asked to `setAttribute` on a name that is a paragraph of
   English; it took the circuit down on every trend page.
 
-  Still open: **chart data points are not keyboard reachable.** Chart.js tooltips are pointer-only.
-  The player and goalie pages carry a game log table beside the chart, which is the same data in an
-  accessible form, but the team page has no table at all — so a team's game-by-game figures are
-  currently unavailable to a keyboard or screen reader beyond the summary sentence.
-- **Team colours in charts.** The palette is four fixed colours. Team pages could use each club's
-  own colour.
-- **Empty and error states.** Pages handle "no data" but not "the query failed".
+  **Chart.js tooltips remain pointer-only**, which is not something to fix in Chart.js: the answer
+  is that every chart now has the same numbers beside it as a table. The team page was the one
+  without, so a club's game-by-game figures were reachable only with a mouse; it has a game log now,
+  matching the player and goalie pages. Verified against Edmonton's season — 82 rows, newest first,
+  standings points per game beside the running total.
+- **Team colours in charts — `done`.** Every chart now draws a club in its own colour, and a player
+  in their club's — the side the item did not ask for and the one that makes the dashboard read like
+  hockey rather than like a palette. McDavid's line is Oilers orange; the streak panels are a wall of
+  club colours.
+
+  Three decisions worth keeping:
+
+  - **Keyed on the abbreviation, not the team id.** The league reissues ids — Utah went from 59 to 68
+    on its rebrand while keeping `UTA` — so the abbreviation is the stable key for what is, after
+    all, a label.
+  - **Brand colours adapted to a dark background, not brand colours.** Several clubs are primarily
+    black or navy, which is invisible here, so Boston is gold, Los Angeles silver, Vegas gold. Every
+    entry clears 3:1 against the card — the floor for a graphical object — and a test fails if an
+    edit drops one below it. Colorado's burgundy needed lightening to pass at all.
+  - **A second club wearing the same red falls back to the palette.** Half the league is in red, and
+    two lines an eye cannot separate read worse than the unfamiliar colour they replaced. Verified
+    live with two teammates: McDavid takes Oilers orange, Draisaitl the palette, because orange is
+    already on the chart.
+
+  **The chips had to learn where the colour came from.** They previously took it straight from the
+  palette by index, which was right when the palette was the only source and wrong the moment the
+  chart could choose. Each page now records the colour it drew each subject in, and a UI test pins
+  the chip to the line it names.
+- **Empty and error states — `done`.** Pages handled "no data" carefully and "the query failed" not
+  at all: an exception during a load took the circuit down and left the reader with Blazor's yellow
+  strip and a page that no longer answered. An `ErrorBoundary` around the page body now keeps the
+  failure inside the page — an explanation, a Try again that re-runs the load, and a link to the
+  Data page — while the exception still reaches the server log in full through
+  `IErrorBoundaryLogger`. The boundary is recovered on navigation, without which one failed page
+  would blank every page visited after it.
+
+  **A failing API call now answers in the format its caller asked for.** It returned the `/Error`
+  page's HTML with its 500, which is unreadable to anything expecting JSON. Ordering turned out to
+  be the whole of it: the ProblemDetails handler has to be registered *after* the page handler, so
+  that it sits inside it and sees an `/api` exception first. Registered the other way round — which
+  is how it was written first, and how it looked correct — the page handler catches everything and
+  the branch never runs. Measured in a Production build with a temporary throwing endpoint:
+  `application/problem+json`, status 500, a traceId to match against the log, and no stack trace.
+
+  **The failure state is exercised rather than assumed.** `/dev/throw` is a page that does nothing
+  but fail, and redirects to the not-found page outside Development — verified, it answers 302 in a
+  Production build. Two UI tests cover it: the fallback appears with Blazor's strip staying hidden,
+  and navigating away afterwards lands on a working page.
 
 ---
 
@@ -609,6 +690,24 @@ the past two weeks — and be graphically dense, with charts and comparisons, ch
 Leaders moves off the home page to a page of its own.
 
 Sequenced so each step is useful on its own.
+
+### 6.5 A season picker on the dashboard — `done`
+
+Every other page had one; the dashboard took the newest season and gave no way to ask about the
+other. It has one now, so the streak panels, the freshness notice and the footer date all follow the
+season chosen — picking 2024-25 reads "The 2024-25 season is over. The last game was 16 months ago",
+with that season's runs beneath it.
+
+Two details:
+
+- **The control appears only when there is more than one season stored.** A dropdown of one is a
+  control that cannot do anything, and this is the page a reader arrives at first.
+- **The panel links carry the season**, so a row read under 2024-25 lands on that season's trend
+  rather than silently on the newest.
+
+The footer was reworded while it was open. "Windows end on 17 April 2025 — 2,792 games across 2
+seasons" reads as though 2,792 games ended that April; the date belongs to the season being shown
+and the count to the database, so they are now two sentences.
 
 ### 6.1 Move Leaders off `/` — `done`
 

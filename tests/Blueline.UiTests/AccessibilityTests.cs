@@ -112,6 +112,22 @@ public class AccessibilityTests : BluelinePageTest
     }
 
     [Test]
+    public async Task A_team_page_offers_its_games_as_a_table_and_not_only_as_a_chart()
+    {
+        // Chart.js tooltips answer only to a pointer, so the table is the whole of a keyboard
+        // reader's access to the game-by-game figures. The player and goalie pages already had one.
+        await GoToAsync($"/teams/{BluelineAppFixture.Seed.HomeTeamId}");
+
+        var log = Page.Locator(".card").Filter(new() { HasText = "Game log" });
+        await Expect(log.Locator("tbody tr")).ToHaveCountAsync(BluelineAppFixture.Seed.GameCount);
+
+        // Ten games at two points a win, five of them wins, newest first — so the top row carries
+        // the closing total.
+        await Expect(log.Locator("tbody tr").First.Locator("td").Last).ToHaveTextAsync("10");
+        AssertNoConsoleErrors();
+    }
+
+    [Test]
     public async Task Table_headers_are_marked_as_headers_for_their_column()
     {
         await GoToAsync("/leaders");
