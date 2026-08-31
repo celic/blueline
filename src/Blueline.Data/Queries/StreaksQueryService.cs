@@ -112,7 +112,8 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
                 : null,
             take);
 
-        return await BoardAsync(definition, window, asOf.Value, seasonId, scope, leaders, goalies: false, ct);
+        return await BoardAsync(
+            definition, window, asOf.Value, seasonId, scope, leaders, goalies: false, runs.Count, ct);
     }
 
     /// <summary>
@@ -197,7 +198,8 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
             .Take(take)
             .ToList();
 
-        return await BoardAsync(definition, window, asOf.Value, seasonId, scope, leaders, goalies: true, ct);
+        return await BoardAsync(
+            definition, window, asOf.Value, seasonId, scope, leaders, goalies: true, candidates.Count, ct);
     }
 
     /// <summary>
@@ -264,7 +266,7 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
     /// <summary>Fills in the names, clubs and headshots — for the handful that made the board, not the field.</summary>
     private async Task<StreakBoard> BoardAsync(
         StatDefinition definition, RollingWindow window, DateOnly asOf, int seasonId,
-        GameScope scope, List<StreakLeader> leaders, bool goalies, CancellationToken ct)
+        GameScope scope, List<StreakLeader> leaders, bool goalies, int considered, CancellationToken ct)
     {
         var ids = leaders.Select(l => l.SubjectId).ToList();
         var players = await db.Players.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
@@ -287,7 +289,8 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
             .ToList();
 
         return new StreakBoard(
-            definition.Key, definition.Label, window.Size, window.Unit, asOf, definition.IsRate, named);
+            definition.Key, definition.Label, window.Size, window.Unit, asOf, definition.IsRate, named,
+            considered);
     }
 
     /// <summary>

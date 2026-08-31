@@ -140,6 +140,27 @@ public class StreakQueryTests : QueryFixture
     }
 
     [Test]
+    public async Task An_empty_board_says_whether_anyone_could_have_filled_the_window()
+    {
+        await SeedSeasonAsync();
+
+        // Twenty games exist, so a fifty-game window is beyond the season rather than a quiet week.
+        var tooEarly = await Streaks.GetSkaterStreaksAsync(SeasonId, "points", RollingWindow.Games(41));
+
+        // Five games everyone played, and the fringe player is filtered by the floor rather than
+        // by the calendar.
+        var quiet = await Streaks.GetSkaterStreaksAsync(SeasonId, "points", RollingWindow.Games(5));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(tooEarly!.Leaders, Is.Empty);
+            Assert.That(tooEarly.TooEarly, Is.True, "nobody has played forty-one games yet");
+            Assert.That(quiet!.TooEarly, Is.False, "three players filled a five-game window");
+            Assert.That(quiet.Considered, Is.EqualTo(3));
+        });
+    }
+
+    [Test]
     public async Task The_window_ends_on_the_last_day_of_hockey_rather_than_today()
     {
         await SeedSeasonAsync();

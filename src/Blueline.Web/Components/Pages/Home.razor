@@ -3,6 +3,7 @@
 @inject StatsQueryService Queries
 @inject StreaksQueryService Streaks
 @inject IOptions<DisplayOptions> Display
+@inject TimeProvider Clock
 @using Microsoft.Extensions.Options
 
 @*
@@ -36,6 +37,37 @@ else if (_boards.Count == 0)
 }
 else
 {
+    @if (_freshness != SeasonFreshness.Current)
+    {
+        @* A trailing window says nothing about its own age, so the page has to. *@
+        <div class="notice">
+            @if (_freshness == SeasonFreshness.OffSeason)
+            {
+                <strong>The @_seasonLabel season is over.</strong>
+                <text>
+                    The last game was @SeasonFreshnessRules.Describe(_daysSince), on
+                    @_asOf!.Value.ToString("d MMMM yyyy"), so these panels describe how it finished
+                    rather than current form.
+                </text>
+            }
+            else
+            {
+                <strong>No games for @_daysSince days.</strong>
+                <text>
+                    The last was on @_asOf!.Value.ToString("d MMMM yyyy"), so these panels describe
+                    the last games played rather than current form.
+                </text>
+            }
+            @if (!_collectionIsCurrent)
+            {
+                <text>
+                    Stats may also be behind: <a href="/data">the Data page</a> shows when they were
+                    last collected.
+                </text>
+            }
+        </div>
+    }
+
     <div class="tiles streak-panels">
         @foreach (var board in _boards)
         {
@@ -47,7 +79,12 @@ else
 
                 @if (board.Leaders.Count == 0)
                 {
-                    <p class="muted panel-empty">Nobody clears the bar over this window.</p>
+                    @* The two empty boards read the same and mean opposite things. *@
+                    <p class="muted panel-empty">
+                        @(board.TooEarly
+                            ? $"Nobody has played {board.WindowLabel.Replace("last ", "")} yet this season."
+                            : "Nobody stands out over this window.")
+                    </p>
                 }
                 else
                 {
@@ -106,11 +143,29 @@ else
 
     private const int PerPanel = 5;
 
+    /// <summary>
+    /// How recently ingestion must have finished for its silence to be evidence rather than
+    /// absence. The job runs daily, so two days covers one missed night without crying wolf.
+    /// </summary>
+    private const int RunConsideredCurrentDays = 2;
+
     private readonly List<StreakBoard> _boards = [];
     private IReadOnlyList<SeasonSummary> _seasons = [];
     private DateOnly? _asOf;
     private int _gamesStored;
     private bool _loading = true;
+    private string _seasonLabel = "";
+    private SeasonFreshness _freshness = SeasonFreshness.Current;
+    private int _daysSince;
+
+    /// <summary>
+    /// Whether collection itself is keeping up, which decides how a gap should be read. With a
+    /// recent successful run behind it, silence means the league is not playing; without one, the
+    /// site cannot claim that, and saying so is better than implying the season ended.
+    /// </summary>
+    private bool _collectionIsCurrent = true;
+
+    private DateOnly Today => DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime);
 
     protected override async Task OnInitializedAsync()
     {
@@ -124,6 +179,7 @@ else
         }
 
         var seasonId = _seasons[0].SeasonId;
+        _seasonLabel = _seasons[0].Label;
         var scope = Display.Value.DefaultGameScope;
 
         foreach (var (stat, window) in Panels)
@@ -136,6 +192,22 @@ else
         if (goalies is not null) _boards.Add(goalies);
 
         _asOf = _boards.Count > 0 ? _boards[0].AsOf : null;
+
+        if (_asOf is not null)
+        {
+            _freshness = SeasonFreshnessRules.Classify(_asOf.Value, Today);
+            _daysSince = SeasonFreshnessRules.DaysSince(_asOf.Value, Today);
+
+            if (_freshness != SeasonFreshness.Current)
+            {
+                var status = await Queries.GetIngestionStatusAsync();
+                _collectionIsCurrent =
+                    status.LastRunStatus != "Failed" &&
+                    status.LastRunCompletedUtc is { } completed &&
+                    Clock.GetUtcNow() - completed < TimeSpan.FromDays(RunConsideredCurrentDays);
+            }
+        }
+
         _loading = false;
     }
 

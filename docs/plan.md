@@ -8,8 +8,7 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 **Revised 2026-08-30 against the answers in `questions.md`.** Groups 1 and 2 are now complete apart
 from 1.6, and what remains is mostly one piece of work:
 
-- **The home page is a streaks dashboard** — group 6, built. What remains of it is 6.4, how the
-  page reads when the newest game is months old.
+- **The home page is a streaks dashboard** — group 6, complete.
 - **Deployment is waiting on things outside the repository** — 3.2 needs a Docker daemon, 3.3 needs
   3.2, and 4.3 needs the 2026-27 season to open on 2026-09-29.
 
@@ -706,9 +705,34 @@ was *visible* failed: the seeded player scores three every night, so the line is
 a zero-height box is invisible to Playwright while being on screen and correct. The test now counts
 the vertices instead — one per game in the window — which is the stronger claim anyway.
 
-### 6.4 Off-season and thin-data behaviour — `todo`
+### 6.4 Off-season and thin-data behaviour — `done`
 
-Everything above assumes recent games. Right now there are none — 2025-26 is complete and 2026-27
-does not open until **2026-09-29**, so the first version of this page will be built entirely against
-a season that has ended. That is a feature: it forces the empty and stale states to be designed
-first rather than discovered in September.
+A trailing window is silent about its own age. "Most points in the last ten games" reads identically
+in March and in August, when those ten games are four months old — so the dashboard now says which
+it is, in three states classified by how long the silence has lasted:
+
+- **Current**, within three days. Clubs play every second or third night and thirty-two of them are
+  doing it at once, so a day or two of quiet is normal and a week is not.
+- **Behind**, four to twenty-one days. Either a scheduled break or a collector that stopped.
+- **Off-season**, beyond that. The longest breaks a season contains — an all-star weekend, an
+  Olympic break — run to about a fortnight, so three weeks of nothing is not a gap in the schedule.
+
+**The site cannot tell a finished season from a stalled collector by looking at games alone, so it
+does not pretend to.** When a gap opens it checks whether ingestion itself is current: with a
+successful run behind it in the last two days, the silence is evidence that the league is not
+playing; without one, the notice adds that stats may also be behind and points at the Data page.
+A database with no ingestion runs at all — which is exactly what the UI tests build — gets the
+honest version rather than the confident one.
+
+**Thin data is a separate failure, and it was invisible.** An empty panel read "Nobody clears the
+bar over this window" whether nobody stood out or nobody had played the window at all. `StreakBoard`
+now reports how many subjects held a full window before any floor was applied, so a twenty-game
+panel on a six-game season says "Nobody has played 20 games yet this season" instead of implying a
+quiet week. That is the state every panel will be in for the opening fortnight of 2026-27.
+
+Verified against the live database, which is in the state this item exists for: the page leads with
+"The 2025-26 season is over. The last game was 4 months ago, on 16 April 2026, so these panels
+describe how it finished rather than current form."
+
+Group 6 is complete.
+

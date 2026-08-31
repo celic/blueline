@@ -26,7 +26,8 @@ with no warnings.
 ## What it does
 
 - **A home page of runs, not totals** — the players furthest above their own usual rate over a
-  trailing window, each drawn as a sparkline and linking through to the trend behind it.
+  trailing window, each drawn as a sparkline and linking through to the trend behind it. It says
+  when its windows are old, so a finished season is not presented as current form.
 - **Season leaders** for points, goals, hits, blocks, time on ice and more.
 - **Player trends** — cumulative totals, or per-game values with a rolling average over a window
   you choose, counted either in games or in days. Search any player in the league and overlay up
@@ -276,8 +277,10 @@ days window also needs at least three appearances behind it, and any subject nee
 season before they are said to have a rate at all.
 
 Windows end on the newest game stored rather than on today, so the boards still answer in the
-off-season — they describe the closing weeks of the season played, and anything showing them has to
-say so.
+off-season — they describe the closing weeks of the season played. The home page classifies that
+silence: under three days is current, up to three weeks is a break or a stalled collector, and
+beyond that the season is over. It checks whether ingestion is itself current before blaming the
+schedule, because the games alone cannot tell those apart.
 
 Standings points are a regular-season construct. Playoff games award none — not for a win, and
 not for an overtime loss, since the playoffs have no loser point. A combined view therefore shows

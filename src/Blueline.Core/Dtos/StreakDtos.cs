@@ -51,6 +51,13 @@ public record StreakLeader(
 /// Decides how <see cref="StreakLeader.Lift"/> reads: a multiple for counting stats, a difference
 /// for rates.
 /// </param>
+/// <param name="Considered">
+/// How many subjects held a full window before any of the floors were applied.
+///
+/// It is what separates the two ways a board can come back empty, which read identically on the
+/// page and mean opposite things: nobody stood out this week, or the season is too young for
+/// anyone to have played the window at all.
+/// </param>
 public record StreakBoard(
     string Stat,
     string StatLabel,
@@ -58,8 +65,12 @@ public record StreakBoard(
     WindowUnit WindowUnit,
     DateOnly AsOf,
     bool IsRate,
-    IReadOnlyList<StreakLeader> Leaders)
+    IReadOnlyList<StreakLeader> Leaders,
+    int Considered = 0)
 {
+    /// <summary>True when the window is longer than anything the season has yet produced.</summary>
+    public bool TooEarly => Considered == 0;
+
     /// <summary>Adjectival, for a panel heading: "points, last 14 days".</summary>
     public string WindowLabel => WindowUnit == WindowUnit.Days ? $"last {Window} days" : $"last {Window} games";
 }

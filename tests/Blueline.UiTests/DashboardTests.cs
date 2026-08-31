@@ -39,15 +39,45 @@ public class DashboardTests : BluelinePageTest
     }
 
     [Test]
-    public async Task A_panel_nobody_qualifies_for_says_so_rather_than_showing_nothing()
+    public async Task A_panel_nobody_qualifies_for_says_which_kind_of_empty_it_is()
     {
-        // The seeded season is ten games long, so a twenty-game window cannot be filled. An empty
-        // panel is a normal answer — in a quiet week most of them are — and has to read as one.
+        // The seeded season is ten games long, so a twenty-game window cannot be filled by anyone.
+        // That is a different statement from "nobody stood out this week", and the two read
+        // identically unless the page distinguishes them.
         await GoToAsync("/");
 
         var goals = Page.Locator(".panel").Filter(new() { Has = Page.GetByText("Goals", new() { Exact = true }) });
 
-        await Expect(goals.Locator(".panel-empty")).ToBeVisibleAsync();
+        await Expect(goals.Locator(".panel-empty"))
+            .ToHaveTextAsync("Nobody has played 20 games yet this season.");
+        AssertNoConsoleErrors();
+    }
+
+    [Test]
+    public async Task The_page_says_so_when_it_is_showing_a_finished_season()
+    {
+        // The fixture's games are from 2025 and the clock is not, so this is the off-season state
+        // the site will sit in until 2026-27 opens. A trailing window says nothing about its own
+        // age; without this the page presents four-month-old runs as current form.
+        await GoToAsync("/");
+
+        var notice = Page.Locator(".notice");
+
+        await Expect(notice).ToBeVisibleAsync();
+        await Expect(notice).ToContainTextAsync("season is over");
+        await Expect(notice).ToContainTextAsync("rather than current form");
+        AssertNoConsoleErrors();
+    }
+
+    [Test]
+    public async Task A_database_nothing_has_been_collected_into_does_not_claim_the_league_is_idle()
+    {
+        // Ingestion is off in these tests and no run has ever been recorded, so the site cannot
+        // tell a finished season from a collector that stopped — and says as much rather than
+        // asserting the first.
+        await GoToAsync("/");
+
+        await Expect(Page.Locator(".notice")).ToContainTextAsync("Stats may also be behind");
         AssertNoConsoleErrors();
     }
 

@@ -111,6 +111,21 @@ h2 { font-size: 1.05rem; margin: 0 0 .75rem; font-weight: 600; }
     gap: 1.25rem;
 }
 
+/* Says the page is showing something older than it looks. Loud enough to be read before the
+   panels below it, quiet enough not to look like an error. */
+.notice {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-strong);
+    border-radius: var(--radius);
+    padding: .8rem 1rem;
+    margin-bottom: 1.25rem;
+    color: var(--muted);
+    font-size: .9rem;
+}
+
+.notice strong { color: var(--text); }
+
 /* --- streak panels --- */
 
 .streak-panels { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
