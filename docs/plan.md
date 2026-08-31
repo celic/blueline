@@ -578,11 +578,31 @@ appear without a manual run.
 
 ## 5. Polish
 
-- **Caching.** `/api/leaders` aggregates ~50,000 rows on every page load. Completed seasons never
-  change, so a memory cache keyed on season + stat would make this free. Question 7 was answered
-  "depends how much sits in cache, needs further discussion", which is the right instinct — so the
-  first move is to **measure** what a season's cached leaders actually weigh rather than argue about
-  it. Group 6 raises the stakes: a dashboard of streaks is many aggregations per page load, not one.
+- **Caching — `done`, aggregates only.** Question 7 asked how much would sit in cache, and
+  measuring settled it: every leaderboard and streak board for both seasons and both scopes is
+  **0.7 MB of JSON**, a few MB in memory, while caching every player's trend would take **0.56 GB**
+  to speed up the cheapest queries in the system — one player, eighty-two rows, no aggregation. The
+  expensive things are small and the big things are cheap, so leaderboards, streak boards and
+  standings are cached and per-subject trends are not.
+
+  | | Before | After |
+  | --- | --- | --- |
+  | Streak board, 10-game window | 64-92 ms | **2-5 ms** |
+  | Leaderboard | 40 ms | **2-3 ms** |
+  | The dashboard, whole page | 235-270 ms | **4-13 ms** |
+
+  **Invalidation could not be told, so it is read.** Ingestion moved out of the web app under 2.6,
+  which means nothing writing to the database can notify a cache living in the site. Every key
+  therefore carries a version token — the newest ingestion run and the newest game — read from the
+  database itself. A nightly run that only revises box scores moves the first; an archive import
+  moves the second; when either moves, every old key is unreachable. The token is held for ten
+  seconds so a page's five panels share one lookup, which is the entire staleness budget.
+
+  One token for the whole database rather than one per season, deliberately. A finished season
+  cannot change, so per-season tokens would survive a nightly run — but they would also mean
+  reasoning about which seasons are finished, and being wrong about that serves stale figures. One
+  token costs a recomputation per stat after each run and cannot be got wrong.
+
 - **Mobile.** Best-effort, per question 8. The CSS has responsive breakpoints but has only been
   checked at desktop width. Fix it if it looks broken; do not treat phones as a first-class target.
 - **Accessibility — `done`.** Compared subjects now carry a shape as well as a

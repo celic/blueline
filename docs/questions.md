@@ -5,49 +5,14 @@ nothing**, so none of these block progress — they just risk me building the wr
 
 Answer inline under each question; I will clear them out as they are resolved.
 
-**Updated 2026-08-30.** Everything here is answered except question 7, which asked for a number
-rather than an opinion and is waiting on a measurement I can take. Answers are kept below in
-condensed form as a record of what was decided; the work they imply lives in `plan.md`.
+**Updated 2026-08-31.** Everything here is answered. The answers are kept below in condensed form
+as a record of what was decided; the work they imply lives in `plan.md`.
 
 ---
 
 ## Open
 
-### 7. Should completed seasons be cached aggressively?
-
-A finished season never changes, so leaders and trends for it could be cached indefinitely and
-served instantly. The only cost is that a correction to a past season would not appear until a
-restart or explicit eviction.
-
-> **Answer:** Depends on how much data is sitting in cache. Older seasons are less likely to be
-> retrieved. Need further discussion.
-
-**The right instinct, and the discussion needs a number rather than an argument.** So the next step
-is to measure a season's cached leaders rather than reason about them. Two things bear on it:
-
-- **Retrieval frequency is the wrong axis to decide on if the cost is small.** A cache that expires
-  on idle already handles "older seasons are rarely asked for" — the rarely-touched season falls out
-  by itself, and the question of how much sits in memory answers itself.
-- **The streaks dashboard changes the sums.** A dashboard is many aggregations on the page every
-  visitor lands on first, over the *current* season, which is the one that cannot be cached
-  indefinitely because it changes daily. That is a shorter expiry keyed to ingestion, not the same
-  mechanism.
-
-**Default if unanswered:** measure first; then a size-bounded cache with idle expiry rather than
-indefinite retention, and a separate short expiry for the in-progress season, invalidated when
-ingestion writes.
-
-**First measurements, from building the streak boards (plan.md 6.2).** Warm, against the real
-two-season database: a season leaderboard is 40 ms, a streak board 43-92 ms depending on the window,
-a goalie board 10 ms. A six-panel dashboard is therefore 300-400 ms of query time, since panels
-share a scoped `DbContext` and cannot run concurrently. That is the number worth deciding against —
-not enormous, but it is paid on the page every visitor lands on first, and every panel of it is
-recomputing figures that only change when a game is ingested. What is still unmeasured is the size
-of the cached results, which is the half of the question you actually asked.
-
-**And the dashboard was built without one.** The whole page renders warm in 235-270 ms with its five
-panels, which is tolerable, so no cache was added on the strength of a guess. The case for caching
-is now about what happens under more than one visitor at a time, not about the page being slow.
+Nothing outstanding. New questions get added here as they come up.
 
 ---
 
@@ -71,6 +36,12 @@ about verifying the image.)*
 
 **6. Does the site need to be private?** No trigger API for data collection; scheduling belongs
 outside the app. *(plan.md 2.6, and question 10 above.)*
+
+**7. Should completed seasons be cached aggressively?** Aggregates only. You asked how much data
+would sit in cache, and measuring answered it: every leaderboard and streak board for both seasons
+and both scopes is **0.7 MB of JSON**, while caching every player's trend would take **0.56 GB** —
+the expensive queries are small and the big ones are cheap. Leaderboards, streak boards and
+standings are cached; per-subject trends are not. *(plan.md group 5.)*
 
 **8. Is mobile first-class?** No — best-effort.
 

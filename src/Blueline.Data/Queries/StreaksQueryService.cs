@@ -18,7 +18,7 @@ namespace Blueline.Data.Queries;
 /// <see cref="MinimumShareOfLeader"/>) rather than a table of per-stat thresholds, which would
 /// need a number invented for each stat and each window size.
 /// </summary>
-public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
+public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats, QueryCache? cache = null)
 {
     /// <summary>
     /// How much of the raw leader's production a subject needs before their lift is considered.
@@ -74,9 +74,18 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
     /// the season simply has nobody who qualifies, which is a normal answer for a window that
     /// lands in a quiet week.
     /// </summary>
-    public async Task<StreakBoard?> GetSkaterStreaksAsync(
+    public Task<StreakBoard?> GetSkaterStreaksAsync(
         int seasonId, string stat, RollingWindow window = default, int take = 5,
         GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
+    {
+        var key = $"streaks|{seasonId}|{stat}|{window.Token}|{take}|{scope}";
+        return cache is null
+            ? SkaterStreaksAsync(seasonId, stat, window, take, scope, ct)
+            : cache.GetOrCreateAsync(db, key, () => SkaterStreaksAsync(seasonId, stat, window, take, scope, ct), ct);
+    }
+
+    private async Task<StreakBoard?> SkaterStreaksAsync(
+        int seasonId, string stat, RollingWindow window, int take, GameScope scope, CancellationToken ct)
     {
         var definition = StatDefinition.FindSkater(stat);
         if (definition is null) return null;
@@ -123,9 +132,18 @@ public class StreaksQueryService(BluelineDbContext db, StatsQueryService stats)
     /// the calendar window exists for — a fortnight is four starts for one goalie and eight for
     /// another, which no games window can compare fairly.
     /// </summary>
-    public async Task<StreakBoard?> GetGoalieStreaksAsync(
+    public Task<StreakBoard?> GetGoalieStreaksAsync(
         int seasonId, RollingWindow window = default, int take = 5,
         GameScope scope = GameScope.RegularSeason, CancellationToken ct = default)
+    {
+        var key = $"goalie-streaks|{seasonId}|{window.Token}|{take}|{scope}";
+        return cache is null
+            ? GoalieStreaksAsync(seasonId, window, take, scope, ct)
+            : cache.GetOrCreateAsync(db, key, () => GoalieStreaksAsync(seasonId, window, take, scope, ct), ct);
+    }
+
+    private async Task<StreakBoard?> GoalieStreaksAsync(
+        int seasonId, RollingWindow window, int take, GameScope scope, CancellationToken ct)
     {
         var definition = StatDefinition.FindGoalie("savePctg")!;
 
