@@ -80,11 +80,19 @@ Tests:
 dotnet test tests/Blueline.Tests
 ```
 
-Browser tests drive the real site through Playwright. They need the browser downloaded once:
+Browser tests drive the real site through Playwright:
 
 ```bash
-tests/Blueline.UiTests/bin/Debug/net10.0/playwright.ps1 install chromium
+dotnet test tests/Blueline.UiTests
 ```
+
+The browser downloads itself on the first run — a few hundred MB into a per-user cache outside the
+repository, and a no-op on every run after. Set `BLUELINE_SKIP_PLAYWRIGHT_INSTALL` where that
+download is unwanted, such as a build that provisions the cache itself.
+
+Playwright also ships `playwright.ps1` for installing browsers by hand, but it is a PowerShell
+script and Windows blocks unsigned scripts by default — `running scripts is disabled on this
+system`. That is why the download happens from the test fixture instead, which needs no shell.
 
 ## Running it in Docker
 

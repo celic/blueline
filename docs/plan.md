@@ -342,7 +342,18 @@ not hypothetical: a render bug that took down the circuit on every trend page su
 this way. Verified by reintroducing the bug — with a project reference added, seven tests fail; without it, all seven pass. The reference is
 `ReferenceOutputAssembly="false"`, since it exists to order the build rather than to be used.
 
-Note for CI: `playwright.ps1 install chromium` must run once, and it downloads roughly 300 MB.
+**Getting the browser was itself a trap, fixed later.** The note here used to say to run
+`playwright.ps1 install chromium` once. Two things were wrong with it. Windows blocks unsigned
+PowerShell scripts by default, so on this machine that command answers `running scripts is disabled
+on this system` and installs nothing; and chromium and its headless shell are separate downloads,
+where a headless run needs the shell. What a developer saw instead was `Executable doesn't exist at
+...chrome-headless-shell.exe`, which names a file rather than a cause.
+
+The fixture now installs both browsers itself before the run, through Playwright's own driver rather
+than a shell script. It is a no-op once they are present, costing a second or so against a first-run
+download of a few hundred MB, and `BLUELINE_SKIP_PLAYWRIGHT_INSTALL` opts out. Verified against an
+empty cache — `PLAYWRIGHT_BROWSERS_PATH` pointed at a fresh directory, the run downloaded both
+browsers and passed.
 
 ### 2.6 Remove the ingestion trigger, and move the schedule outside the app — `done`
 

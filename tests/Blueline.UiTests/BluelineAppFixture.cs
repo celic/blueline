@@ -38,9 +38,41 @@ public class BluelineAppFixture
     private Process? _app;
     private string _dataDir = "";
 
+    /// <summary>
+    /// Downloads the browser these tests drive, if it is not already there.
+    ///
+    /// Playwright keeps browsers in a per-user cache outside the repository, so a checkout that
+    /// builds and passes every other suite still cannot run these until someone runs an install
+    /// command they have to know about. What it says when they have not is "Executable doesn't
+    /// exist at ...chrome-headless-shell.exe", which names a file rather than a cause.
+    ///
+    /// Installing here is a no-op once the browser is present — it checks and returns — so the
+    /// cost is a fraction of a second per run against a first-run download of a few hundred MB.
+    /// Set BLUELINE_SKIP_PLAYWRIGHT_INSTALL where that download is not wanted, such as an air-
+    /// gapped build that provisions the cache itself.
+    /// </summary>
+    private static void EnsureBrowserInstalled()
+    {
+        if (Environment.GetEnvironmentVariable("BLUELINE_SKIP_PLAYWRIGHT_INSTALL") is { Length: > 0 }) return;
+
+        // Chromium and its headless shell are separate downloads, and headless runs need the
+        // shell — installing "chromium" alone was enough in older versions and is not now.
+        var exitCode = Microsoft.Playwright.Program.Main(["install", "chromium", "chromium-headless-shell"]);
+
+        if (exitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Playwright could not install its browsers (exit code {exitCode}). Run this once by hand: " +
+                @"powershell -File tests\Blueline.UiTestsin\Debug
+et10.0\playwright.ps1 install chromium chromium-headless-shell");
+        }
+    }
+
     [OneTimeSetUp]
     public async Task StartAsync()
     {
+        EnsureBrowserInstalled();
+
         _dataDir = Path.Combine(Path.GetTempPath(), "blueline-ui", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dataDir);
 
