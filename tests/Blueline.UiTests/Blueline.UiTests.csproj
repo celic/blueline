@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -25,6 +25,16 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Blueline.Data\Blueline.Data.csproj" />
     <ProjectReference Include="..\..\src\Blueline.Core\Blueline.Core.csproj" />
+
+    <!--
+      The fixture launches the site from its own build output rather than this one, so nothing
+      here needs the reference at compile time. It exists to make building these tests build the
+      site: without it, `dotnet test` on this project alone happily starts whatever DLL was last
+      left in bin, and a green run can be a green run against yesterday's code. That is not a
+      hypothetical - a render bug survived a full pass this way.
+    -->
+    <ProjectReference Include="..\..\src\Blueline.Web\Blueline.Web.csproj"
+                      ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
 
 </Project>
