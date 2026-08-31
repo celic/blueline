@@ -9,8 +9,8 @@ Status of each item is one of: `todo`, `in progress`, `done`.
 from 1.6, and what remains is mostly one piece of work:
 
 - **The home page is a streaks dashboard** — group 6, complete.
-- **Deployment**: the image is built and verified (3.2), so 3.3 — the runbook — is unblocked. 4.3
-  still waits for the 2026-27 season to open on 2026-09-29.
+- **Deployment**: the image is built and verified (3.2) and the runbook is written from what was
+  actually run (3.3). Only 4.3 remains, waiting for the 2026-27 season to open on 2026-09-29.
 
 Both questions raised by the last revision are now answered. **Question 10 confirms 2.6 as built**:
 the schedule runs on the same host as a separate process, never behind a reachable API. **Question
@@ -493,41 +493,31 @@ Two findings that only a real build could produce:
   Excluding `seed/` from the build context was tried and reverted: the Dockerfile copies it on
   purpose, and the honest fix is the warning rather than a redesign.
 
-### 3.3 Write the deployment runbook — `todo`
+### 3.3 Write the deployment runbook — `done`
 
-3.1 produces the image and 3.2 confirms it runs; this is the document for actually running it and
-keeping it running. Nothing of the sort exists, so today the only person who could deploy this is
-someone who has read the source.
+`docs/runbook.md`. **Every procedure in it was run against the real image rather than written from
+the source**, which is what waiting for 3.2 bought:
 
-Now Docker-specific rather than host-specific, which makes it writable as soon as 3.2 passes. It
-gains one section from 2.6: **how the scheduled ingestion is set up**, since the app will no longer
-do it for itself and a deployment that skips this step goes stale silently — the site keeps serving
-yesterday's data and nothing about it looks broken.
+- **First deploy** — an empty volume loaded both archives in seconds and came up healthy with 2,792
+  games.
+- **The volume actually persisting**, which the item called the single most important step. Restart,
+  then confirm the count is unchanged and the log does not say "Database is empty". Verified.
+- **Backups by `export` per season, not `cp`.** Copying the database file while the app runs can
+  miss the `-wal` sidecar and produce something inconsistent. Export reads through the model, so it
+  is consistent and portable. Round trip verified: both seasons exported from a running deployment
+  and imported into an empty volume returned all 2,792 games.
+- **Upgrades** — rebuilt with the volume in place, no re-seed, data intact.
+- **Recovery** by `reconcile` after a missed stretch, and the readiness/liveness split with the real
+  JSON both endpoints return.
 
-It needs to cover:
+It also carries the traps found in 3.2 — `--entrypoint dotnet`, not pushing an image built with
+archives, leaving `ASPNETCORE_HTTPS_PORT` unset — and one found while writing it: from Git Bash on
+Windows a `-v` path is rewritten before Docker sees it, and the export fails with
+`Access to the path '/app/C:' is denied` until `MSYS_NO_PATHCONV=1` is set.
 
-- **First deploy.** Provision the volume, set `BLUELINE_DATA_DIR` to it, start the container. On
-  an empty database the app seeds a whole season by itself, which takes several minutes of
-  requests before the site has anything to show.
-- **The trap that ruins the free-tier story.** Seeding triggers on an *empty* database. If the
-  volume is not genuinely persistent — an ephemeral container filesystem, a free tier that resets
-  disk on redeploy — every restart re-ingests ~1,400 games. That is slow, hammers the league's
-  API, and looks like the app is merely slow to start. Verifying the volume actually survives a
-  restart is the single most important step, and the runbook should say so first.
-- **Migrations run automatically at startup** (`MigrateAsync` in `Program.cs`). Convenient, but it
-  means a failed migration is a failed boot rather than a degraded service. Say what to do when
-  that happens, and note that rolling the image back does not roll the schema back.
-- **Backups.** Copying `blueline.db` while the app is running is not safe on its own — with
-  write-ahead logging the recent commits live in the `-wal` sidecar. Use `VACUUM INTO` or the
-  SQLite backup API against a live connection. Worth stating plainly, because the naive `cp` looks
-  like it works right up until it doesn't.
-- **Upgrades and rollback.** Replace the image, keep the volume. Schema changes are the asymmetry.
-- **What to watch.** The health endpoint from 2.4, and the ingestion status the Data page already
-  surfaces — including the failed-game counts added in 2.2.
-- **Recovery.** If a stretch of games is missed while the host was asleep, `reconcile` is the fix
-  (2.3). The runbook should name it rather than leaving someone to rediscover it.
-
-Worth writing only once 3.1 and 3.2 are settled, since the specifics depend on the host.
+**What has not been exercised says so, in its own section.** A failed migration, bind mounts on a
+Linux host (Docker Desktop mounts world-writable, which proves nothing about a host that passes its
+own ownership through), and a live game day.
 
 ---
 

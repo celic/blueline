@@ -100,7 +100,9 @@ system`. That is why the download happens from the test fixture instead, which n
 docker compose up --build
 ```
 
-The site is then on `http://localhost:8080`.
+The site is then on `http://localhost:8080`. For running it in earnest — the volume that must
+persist, backups, upgrades, what to watch, and how to recover — see
+**[the deployment runbook](docs/runbook.md)**.
 
 The image publishes the site and the CLI side by side, so one image runs either. That is what
 lets you seed, reconcile or inspect the very same volume the site is using:
